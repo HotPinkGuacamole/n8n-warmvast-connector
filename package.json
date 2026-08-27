@@ -1,0 +1,58 @@
+{
+	"name": "n8n-nodes-teamleader-warmvast",
+	"version": "0.1.1",
+	"description": "n8n community node for Teamleader Focus (CRM, deals, quotations, invoices, products)",
+	"keywords": [
+		"n8n-community-node-package",
+		"n8n",
+		"teamleader",
+		"teamleader-focus",
+		"crm"
+	],
+	"license": "MIT",
+	"author": {
+		"name": "Warmvast Isolatie"
+	},
+	"engines": {
+		"node": ">=20.15"
+	},
+	"main": "index.js",
+	"scripts": {
+		"build": "npx rimraf dist && tsc && node scripts/copy-icons.mjs",
+		"dev": "tsc --watch",
+		"format": "prettier nodes credentials --write",
+		"lint": "eslint nodes credentials && eslint --no-eslintrc --config .eslintrc.package.js package.json",
+		"lintfix": "eslint nodes credentials --fix",
+		"test": "jest --passWithNoTests",
+		"test:watch": "jest --watch",
+		"prepublishOnly": "npm run build && npm run lint"
+	},
+	"files": [
+		"dist"
+	],
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"credentials": [
+			"dist/credentials/TeamleaderOAuth2Api.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/Teamleader/Teamleader.node.js"
+		]
+	},
+	"devDependencies": {
+		"@types/jest": "^29.5.12",
+		"@typescript-eslint/parser": "^7.18.0",
+		"eslint": "^8.57.0",
+		"eslint-plugin-n8n-nodes-base": "^1.16.3",
+		"jest": "^29.7.0",
+		"jsonc-eslint-parser": "^3.3.0",
+		"n8n-workflow": "^1.82.0",
+		"prettier": "^3.3.3",
+		"rimraf": "^5.0.10",
+		"ts-jest": "^29.2.5",
+		"typescript": "^5.5.4"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
+	}
+}
