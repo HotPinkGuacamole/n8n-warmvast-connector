@@ -6,15 +6,15 @@ import {
 	getRequiredId,
 	teamleaderApiRequest,
 	teamleaderFetchList,
-} from '../helpers/GenericFunctions';
-import type { ITeamleaderGroupedLineItem, ITeamleaderLineItem } from '../helpers/interfaces';
+} from '../../helpers/GenericFunctions';
+import type { ITeamleaderGroupedLineItem, ITeamleaderLineItem } from '../../helpers/interfaces';
 import {
 	buildMoney,
 	cleanObject,
 	extractCollection,
 	toApiDate,
 	toStringArray,
-} from '../helpers/utils';
+} from '../../helpers/utils';
 
 /** Build a single quotation line item from its fixedCollection entry. */
 export function buildLineItem(entry: IDataObject, currency?: string): ITeamleaderLineItem {

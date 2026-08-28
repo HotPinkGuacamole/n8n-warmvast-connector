@@ -6,7 +6,7 @@ import {
 	getRequiredId,
 	teamleaderApiRequest,
 	teamleaderFetchList,
-} from '../helpers/GenericFunctions';
+} from '../../helpers/GenericFunctions';
 import {
 	buildCustomFields,
 	buildCustomer,
@@ -16,7 +16,7 @@ import {
 	extractCollection,
 	toApiDate,
 	toStringArray,
-} from '../helpers/utils';
+} from '../../helpers/utils';
 
 /** Map the additionalFields collection onto the deals.create/update payload. */
 export function buildDealPayload(additionalFields: IDataObject, isCreate: boolean): IDataObject {

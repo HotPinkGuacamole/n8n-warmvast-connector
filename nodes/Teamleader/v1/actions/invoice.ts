@@ -6,8 +6,8 @@ import {
 	getRequiredId,
 	teamleaderApiRequest,
 	teamleaderFetchList,
-} from '../helpers/GenericFunctions';
-import type { ITeamleaderGroupedLineItem, ITeamleaderLineItem } from '../helpers/interfaces';
+} from '../../helpers/GenericFunctions';
+import type { ITeamleaderGroupedLineItem, ITeamleaderLineItem } from '../../helpers/interfaces';
 import {
 	buildCustomFields,
 	buildCustomer,
@@ -17,7 +17,7 @@ import {
 	extractCollection,
 	toApiDate,
 	toStringArray,
-} from '../helpers/utils';
+} from '../../helpers/utils';
 import { buildCommercialDiscounts } from './quotation';
 
 /** Build a single invoice line item from its fixedCollection entry. */

@@ -9,7 +9,7 @@ import {
 	buildRecipients,
 	buildSendPayload,
 	executeQuotation,
-} from '../nodes/Teamleader/actions/quotation';
+} from '../nodes/Teamleader/v1/actions/quotation';
 
 /** Minimal IExecuteFunctions stub driven by a parameter map. */
 function createContext(params: IDataObject, request = jest.fn().mockResolvedValue({ data: {} })) {

@@ -6,7 +6,7 @@ import {
 	buildProductFilter,
 	buildProductPayload,
 	executeProduct,
-} from '../nodes/Teamleader/actions/product';
+} from '../nodes/Teamleader/v1/actions/product';
 import { getPriceLists, getProducts } from '../nodes/Teamleader/methods/loadOptions';
 
 /** Minimal IExecuteFunctions stub driven by a parameter map. */

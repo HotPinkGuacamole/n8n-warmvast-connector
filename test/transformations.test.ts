@@ -1,5 +1,5 @@
-import { buildCompanyFilter, buildCompanyPayload } from '../nodes/Teamleader/actions/company';
-import { buildContactFilter, buildContactPayload } from '../nodes/Teamleader/actions/contact';
+import { buildCompanyFilter, buildCompanyPayload } from '../nodes/Teamleader/v1/actions/company';
+import { buildContactFilter, buildContactPayload } from '../nodes/Teamleader/v1/actions/contact';
 
 describe('buildContactPayload', () => {
 	it('maps a full contact payload', () => {

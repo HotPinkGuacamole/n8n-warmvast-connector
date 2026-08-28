@@ -182,9 +182,45 @@ export async function getQuotationTemplates(
 	return await documentTemplates(this, 'quotation');
 }
 
-export async function getMailTemplates(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
-	const items = await teamleaderApiRequestAllItems.call(this, '/mailTemplates.list', {});
+/**
+ * `mailTemplates.list` requires `filter.type`; calling it without one fails.
+ * Always go through this helper with an explicit template type.
+ */
+async function mailTemplates(
+	context: ILoadOptionsFunctions,
+	type: 'invoice' | 'quotation' | 'work_order' | 'credit_note',
+): Promise<INodePropertyOptions[]> {
+	const departmentId = extractId(context.getCurrentNodeParameter('departmentId'));
+	const filter: IDataObject = { type };
+	if (departmentId) filter.department_id = departmentId;
+
+	const items = await teamleaderApiRequestAllItems.call(context, '/mailTemplates.list', {
+		filter,
+	});
 	return toOptions(items, (item) => item.name as string);
+}
+
+export async function getMailTemplates(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+	// Historically used by the invoice send operation only.
+	return await mailTemplates(this, 'invoice');
+}
+
+export async function getInvoiceMailTemplates(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	return await mailTemplates(this, 'invoice');
+}
+
+export async function getQuotationMailTemplates(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	return await mailTemplates(this, 'quotation');
+}
+
+export async function getCreditNoteMailTemplates(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	return await mailTemplates(this, 'credit_note');
 }
 
 export async function getTags(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
@@ -195,13 +231,74 @@ export async function getTags(this: ILoadOptionsFunctions): Promise<INodePropert
 		.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Contexts supported by `customFieldDefinitions.list`. */
+export type CustomFieldContext =
+	| 'contact'
+	| 'company'
+	| 'deal'
+	| 'project'
+	| 'milestone'
+	| 'product'
+	| 'invoice'
+	| 'subscription'
+	| 'ticket';
+
+/**
+ * Load custom field definitions, optionally scoped to a single Teamleader context.
+ * Scoping is done server-side through `filter.context`; when a context is given the
+ * `[context]` label suffix is dropped because every entry belongs to that context.
+ */
+async function customFieldDefinitions(
+	context: ILoadOptionsFunctions,
+	scope?: CustomFieldContext,
+): Promise<INodePropertyOptions[]> {
+	const body: IDataObject = scope ? { filter: { context: scope } } : {};
+	const items = await teamleaderApiRequestAllItems.call(
+		context,
+		'/customFieldDefinitions.list',
+		body,
+	);
+
+	return toOptions(items, (item) => {
+		const label = (item.label as string) ?? (item.id as string);
+		if (scope) return label;
+		const itemContext = item.context ? ` [${item.context}]` : '';
+		return `${label}${itemContext}`;
+	});
+}
+
 export async function getCustomFieldDefinitions(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {
-	const items = await teamleaderApiRequestAllItems.call(this, '/customFieldDefinitions.list', {});
-	return toOptions(items, (item) => {
-		const label = (item.label as string) ?? (item.id as string);
-		const context = item.context ? ` [${item.context}]` : '';
-		return `${label}${context}`;
-	});
+	return await customFieldDefinitions(this);
+}
+
+export async function getContactCustomFieldDefinitions(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	return await customFieldDefinitions(this, 'contact');
+}
+
+export async function getCompanyCustomFieldDefinitions(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	return await customFieldDefinitions(this, 'company');
+}
+
+export async function getDealCustomFieldDefinitions(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	return await customFieldDefinitions(this, 'deal');
+}
+
+export async function getProductCustomFieldDefinitions(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	return await customFieldDefinitions(this, 'product');
+}
+
+export async function getInvoiceCustomFieldDefinitions(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	return await customFieldDefinitions(this, 'invoice');
 }

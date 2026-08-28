@@ -5,14 +5,14 @@ import {
 	getRequiredId,
 	teamleaderApiRequest,
 	teamleaderFetchList,
-} from '../helpers/GenericFunctions';
+} from '../../helpers/GenericFunctions';
 import {
 	buildCustomFields,
 	buildMoney,
 	cleanObject,
 	extractCollection,
 	toStringArray,
-} from '../helpers/utils';
+} from '../../helpers/utils';
 
 /** Build the `price_list_prices` array from its fixedCollection value. */
 export function buildPriceListPrices(value: unknown): IDataObject[] | undefined {
