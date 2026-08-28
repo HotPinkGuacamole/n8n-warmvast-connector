@@ -1,4 +1,5 @@
 import type {
+	IDataObject,
 	IExecuteFunctions,
 	INodeExecutionData,
 	INodeType,
@@ -9,16 +10,18 @@ import { NodeOperationError } from 'n8n-workflow';
 
 import * as listSearch from '../methods/listSearch';
 import * as loadOptions from '../methods/loadOptions';
+import { executeCompany } from './actions/company';
+import { executeContact } from './actions/contact';
+import { companyFields, companyOperations } from './descriptions/CompanyDescription';
+import { contactFields, contactOperations } from './descriptions/ContactDescription';
 import { v2ResourceField } from './descriptions/V2Common';
 
 /**
- * V2 skeleton.
+ * Teamleader V2.
  *
- * Stage 1 only proves that the versioned node loads, that V2 is the default
- * version and that the credential is wired at node-definition level.
- * Resource descriptions and actions are added in later stages by extending
- * `properties` and the dispatch switch below — the versioned wrapper does not
- * need to change for that.
+ * Resources are migrated one at a time. Each migrated resource contributes its
+ * own operations/fields and its own action module; nothing here is a generic
+ * dispatcher over V1 parameter paths.
  */
 export class TeamleaderV2 implements INodeType {
 	description: INodeTypeDescription;
@@ -27,7 +30,7 @@ export class TeamleaderV2 implements INodeType {
 		this.description = {
 			...baseDescription,
 			version: 2,
-			subtitle: '={{$parameter["resource"]}}',
+			subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 			defaults: {
 				name: 'Teamleader',
 			},
@@ -41,14 +44,14 @@ export class TeamleaderV2 implements INodeType {
 				},
 			],
 			properties: [
-				{
-					displayName:
-						'This is the new Teamleader experience. Resources are being migrated one by one — use a Teamleader node set to version 1 for anything not offered here yet.',
-					name: 'v2Notice',
-					type: 'notice',
-					default: '',
-				},
-				v2ResourceField([]),
+				v2ResourceField([
+					{ name: 'Company', value: 'company' },
+					{ name: 'Contact', value: 'contact' },
+				]),
+				...contactOperations,
+				...contactFields,
+				...companyOperations,
+				...companyFields,
 			],
 		};
 	}
@@ -62,18 +65,36 @@ export class TeamleaderV2 implements INodeType {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
+		const resource = this.getNodeParameter('resource', 0) as string;
+		const operation = this.getNodeParameter('operation', 0) as string;
+
 		for (let i = 0; i < items.length; i++) {
 			try {
-				const resource = this.getNodeParameter('resource', i, '') as string;
+				let results: IDataObject[];
 
-				throw new NodeOperationError(
-					this.getNode(),
-					`The resource "${resource}" is not available in Teamleader version 2 yet`,
-					{
-						itemIndex: i,
-						description:
-							'Set this node to Teamleader version 1 until this resource has been migrated.',
-					},
+				switch (resource) {
+					case 'contact':
+						results = await executeContact.call(this, operation, i);
+						break;
+					case 'company':
+						results = await executeCompany.call(this, operation, i);
+						break;
+					default:
+						throw new NodeOperationError(
+							this.getNode(),
+							`The resource "${resource}" is not available in Teamleader version 2 yet`,
+							{
+								itemIndex: i,
+								description:
+									'Set this node to Teamleader version 1 until this resource has been migrated.',
+							},
+						);
+				}
+
+				returnData.push(
+					...this.helpers.constructExecutionMetaData(this.helpers.returnJsonArray(results), {
+						itemData: { item: i },
+					}),
 				);
 			} catch (error) {
 				if (this.continueOnFail()) {

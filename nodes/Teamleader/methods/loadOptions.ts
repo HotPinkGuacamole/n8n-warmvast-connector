@@ -101,10 +101,30 @@ export async function getPaymentMethods(
 	return toOptions(items, (item) => item.name as string);
 }
 
+/**
+ * Business types are scoped per country. V2 keeps the country field at the top
+ * level of the form, where reading the current value is dependable; V1 nests it
+ * inside its Additional Fields collection, so that path is tried as well.
+ * Anything unusable falls back to BE rather than returning an empty dropdown.
+ */
 export async function getBusinessTypes(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {
-	const country = (this.getCurrentNodeParameter('businessTypeCountry') as string) || 'BE';
+	const candidates = [
+		this.getCurrentNodeParameter('businessTypeCountry'),
+		this.getCurrentNodeParameter('additionalFields.businessTypeCountry'),
+	];
+
+	let country = 'BE';
+	for (const candidate of candidates) {
+		if (typeof candidate !== 'string') continue;
+		const normalised = candidate.trim().toUpperCase();
+		if (/^[A-Z]{2}$/.test(normalised)) {
+			country = normalised;
+			break;
+		}
+	}
+
 	const items = await teamleaderApiRequestAllItems.call(this, '/businessTypes.list', {
 		country,
 	});

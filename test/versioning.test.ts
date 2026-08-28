@@ -136,8 +136,11 @@ describe('Teamleader V2 skeleton', () => {
 		expect(resource?.type).toBe('options');
 	});
 
-	it('does not duplicate the V1 implementation yet', () => {
-		const names = v2.description.properties.map((property) => property.name);
-		expect(names).not.toContain('operation');
+	it('exposes only the resources migrated so far', () => {
+		const resource = v2.description.properties.find((property) => property.name === 'resource');
+		expect(resource?.options?.map((option) => (option as { value: string }).value)).toEqual([
+			'company',
+			'contact',
+		]);
 	});
 });
