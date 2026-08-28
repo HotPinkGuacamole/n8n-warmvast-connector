@@ -114,7 +114,9 @@ export async function getBusinessTypes(
 export async function getProductCategories(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {
-	const items = await teamleaderApiRequestAllItems.call(this, '/productCategories.list', {});
+	const departmentId = extractId(this.getCurrentNodeParameter('departmentId'));
+	const body: IDataObject = departmentId ? { filter: { department_id: departmentId } } : {};
+	const items = await teamleaderApiRequestAllItems.call(this, '/productCategories.list', body);
 	return toOptions(items, (item) => item.name as string);
 }
 
@@ -123,6 +125,20 @@ export async function getUnitsOfMeasure(
 ): Promise<INodePropertyOptions[]> {
 	const items = await teamleaderApiRequestAllItems.call(this, '/unitsOfMeasure.list', {});
 	return toOptions(items, (item) => item.name as string);
+}
+
+export async function getPriceLists(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+	const items = await teamleaderApiRequestAllItems.call(this, '/priceLists.list', {});
+	return toOptions(items, (item) => item.name as string);
+}
+
+export async function getProducts(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+	const items = await teamleaderApiRequestAllItems.call(this, '/products.list', {});
+	return toOptions(items, (item) => {
+		const name = (item.name as string) ?? '';
+		const code = item.code ? ` [${item.code}]` : '';
+		return `${name}${code}`.trim();
+	});
 }
 
 export async function getWorkTypes(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
