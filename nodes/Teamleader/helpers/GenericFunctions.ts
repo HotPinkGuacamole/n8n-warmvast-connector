@@ -52,7 +52,7 @@ export async function teamleaderApiRequest<T = IDataObject | IDataObject[]>(
 	this: TeamleaderContext,
 	endpoint: string,
 	body: IDataObject = {},
-	options: { returnFullResponse?: boolean; encoding?: 'arraybuffer' } = {},
+	options: { encoding?: 'arraybuffer' } = {},
 ): Promise<ITeamleaderResponse<T>> {
 	const baseUrl = await resolveBaseUrl(this);
 	const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -110,16 +110,6 @@ export async function teamleaderApiRequest<T = IDataObject | IDataObject[]>(
 	throw new NodeApiError(this.getNode(), lastError as JsonObject, {
 		message: `Teamleader API request to "${path}" failed`,
 	});
-}
-
-/** Convenience wrapper that returns only the `data` payload of a response. */
-export async function teamleaderApiRequestData<T = IDataObject>(
-	this: TeamleaderContext,
-	endpoint: string,
-	body: IDataObject = {},
-): Promise<T> {
-	const response = await teamleaderApiRequest.call(this, endpoint, body);
-	return (response.data ?? {}) as T;
 }
 
 /**

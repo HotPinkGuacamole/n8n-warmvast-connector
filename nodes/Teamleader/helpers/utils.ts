@@ -1,9 +1,12 @@
 import type { IDataObject } from 'n8n-workflow';
 
 import type {
+	ITeamleaderCustomFieldValue,
 	ITeamleaderEmail,
 	ITeamleaderError,
+	ITeamleaderMoney,
 	ITeamleaderPage,
+	ITeamleaderReference,
 	ITeamleaderSort,
 	ITeamleaderTelephone,
 	ITeamleaderTypedAddress,
@@ -131,7 +134,7 @@ export function buildAddresses(value: unknown): ITeamleaderTypedAddress[] | unde
 }
 
 /** Convert a custom fields fixedCollection value into the API shape. */
-export function buildCustomFields(value: unknown): Array<{ id: string; value: unknown }> | undefined {
+export function buildCustomFields(value: unknown): ITeamleaderCustomFieldValue[] | undefined {
 	const raw = extractCollection(value, 'field');
 	const fields = raw
 		.filter((item) => typeof item.id === 'string' && (item.id as string).length > 0)
@@ -157,10 +160,7 @@ export function extractCollection(value: unknown, innerName: string): IDataObjec
 }
 
 /** Build a Money object; returns undefined when no usable amount was given. */
-export function buildMoney(
-	amount: unknown,
-	currency?: string,
-): { amount: number; currency: string } | undefined {
+export function buildMoney(amount: unknown, currency?: string): ITeamleaderMoney | undefined {
 	if (amount === undefined || amount === null || amount === '') return undefined;
 	const parsed = typeof amount === 'number' ? amount : Number(amount);
 	if (Number.isNaN(parsed)) return undefined;
@@ -168,7 +168,7 @@ export function buildMoney(
 }
 
 /** Build a customer reference `{ type, id }` as used by the deal `lead` object. */
-export function buildCustomer(type: unknown, id: unknown): { type: string; id: string } | undefined {
+export function buildCustomer(type: unknown, id: unknown): ITeamleaderReference | undefined {
 	const customerId = typeof id === 'string' ? id.trim() : '';
 	if (!customerId) return undefined;
 	return { type: type === 'contact' ? 'contact' : 'company', id: customerId };

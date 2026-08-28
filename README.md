@@ -1,187 +1,116 @@
 # n8n-nodes-teamleader-warmvast
 
-A private [n8n](https://n8n.io) community node package for **Teamleader Focus**, built on the official
-[Teamleader Focus API](https://developer.focus.teamleader.eu/).
+An n8n community node package for [Teamleader Focus](https://www.teamleader.eu/), built on the
+official Teamleader Focus API (`https://api.focus.teamleader.eu`).
 
-- OAuth2 credential (`Teamleader OAuth2 API`)
-- One action node (`Teamleader`) with a Resource / Operation UI
-- Reusable, typed API request helper with automatic pagination, retries and n8n-native error handling
-- Dynamic dropdowns (`loadOptions`) and searchable resource locators (`listSearch`) — no hardcoded UUIDs anywhere
-- Expressions work in every user input field
+The package ships two nodes:
 
-## Status
+- **Teamleader** — an action node for Contacts, Companies, Deals, Products, Quotations and Invoices.
+- **Teamleader Trigger** — a webhook trigger that registers itself with Teamleader when the workflow
+  is activated.
 
-| Phase | Scope | State |
-| --- | --- | --- |
-| 1 | Package architecture, OAuth2 credential, API helper, **Contact**, **Company** | Implemented, built and tested |
-| 2 | **Deal**, **Quotation**, **Invoice**, **Product** | Planned |
-| 3 | **Teamleader Trigger** node (webhooks) | Planned |
+Both use the same **Teamleader OAuth2 API** credential.
 
-## Implemented resources
+## Installation (self-hosted n8n)
 
-### Contact
-`Get`, `Get Many` (list/search with filters, sorting and pagination), `Create`, `Update`, `Delete`,
-`Tag`, `Untag`, `Link to Company`, `Unlink from Company`.
-
-### Company
-`Get`, `Get Many`, `Create`, `Update`, `Delete`, `Tag`, `Untag`.
-
-Both resources support addresses, emails, telephones, tags and custom fields, and can optionally
-include custom field values in read operations (`includes=custom_fields`).
-
-## Requirements
-
-- Self-hosted n8n (community nodes are not available on n8n Cloud for private packages)
-- Node.js 20.15 or newer
-- A Teamleader Focus integration registered on the
-  [Teamleader Marketplace build page](https://marketplace.focus.teamleader.eu/build)
-
-## Installation on self-hosted n8n
-
-### Option A — Install from the n8n UI (recommended)
-
-1. Publish the package to npm (or a private registry).
-2. In n8n, go to **Settings → Community nodes → Install a community node**.
-3. Enter `n8n-nodes-teamleader-warmvast` and confirm.
-4. Restart n8n if prompted.
-
-### Option B — Install into the n8n user folder
+Install from the n8n UI (**Settings → Community nodes → Install**) using the package name
+`n8n-nodes-teamleader-warmvast`, or install it manually into the n8n user folder:
 
 ```bash
-cd ~/.n8n
-mkdir -p nodes && cd nodes
+cd ~/.n8n/nodes          # create it if it does not exist
+npm init -y              # only needed the first time
 npm install n8n-nodes-teamleader-warmvast
-# then restart n8n
 ```
 
-### Option C — Local development / linking (no npm publish)
+Restart n8n afterwards. In Docker, the same folder lives at `/home/node/.n8n/nodes`.
+
+To install a locally built copy instead:
 
 ```bash
-git clone <this-repo> n8n-nodes-teamleader-warmvast
-cd n8n-nodes-teamleader-warmvast
-npm install
 npm run build
-npm link
-
-# in the n8n custom nodes folder
-mkdir -p ~/.n8n/nodes && cd ~/.n8n/nodes
-npm init -y            # only the first time
-npm link n8n-nodes-teamleader-warmvast
-
-# restart n8n
-n8n start
+npm pack                                  # produces a .tgz
+npm install /path/to/n8n-nodes-teamleader-warmvast-<version>.tgz
 ```
 
-### Option D — Docker
+## Teamleader integration setup
 
-Mount a folder containing the built package into the n8n custom extensions directory:
+1. Sign in at the [Teamleader Marketplace build section](https://marketplace.focus.teamleader.eu/build)
+   and create a new integration.
+2. Enable the scopes your workflows need (for example `contacts`, `companies`, `deals`, `products`,
+   `quotations`, `invoices`).
+3. Add the n8n OAuth callback as an allowed **redirect URI**:
 
-```yaml
-services:
-  n8n:
-    image: docker.n8n.io/n8nio/n8n
-    environment:
-      - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
-    volumes:
-      - ./n8n-nodes-teamleader-warmvast:/home/node/.n8n/custom/n8n-nodes-teamleader-warmvast
-```
+   ```
+   https://<your-n8n-host>/rest/oauth2-credential/callback
+   ```
 
-Only the `dist` folder and `package.json` are required at runtime.
+   This exact URL is shown in the n8n credential dialog — copy it from there.
+4. Copy the **Client ID** and **Client Secret** into a new **Teamleader OAuth2 API** credential in
+   n8n and click **Connect**.
 
-## Credential setup
+The credential exposes an optional **Scope** field (leave empty to use the scopes configured on the
+integration) and an **API Base URL** field, which normally stays at its default.
 
-1. Create an integration on <https://marketplace.focus.teamleader.eu/build>.
-2. Add the n8n OAuth callback URL (shown in the credential dialog, typically
-   `https://<your-n8n-host>/rest/oauth2-credential/callback`) as an allowed redirect URI.
-3. Select every scope your workflows need (contacts, companies, deals, invoices, products, …).
-4. In n8n, create a **Teamleader OAuth2 API** credential and fill in the `Client ID` and
-   `Client Secret` from your integration, then click **Connect**.
+## Supported resources and operations
 
-The credential is preconfigured with:
-
-| Field | Value |
+| Resource | Operations |
 | --- | --- |
-| Authorization URL | `https://focus.teamleader.eu/oauth2/authorize` |
-| Access Token URL | `https://focus.teamleader.eu/oauth2/access_token` |
-| API Base URL | `https://api.focus.teamleader.eu` |
+| **Contact** | Get, Get Many, Create, Update, Delete, Tag, Untag, Link to Company, Unlink From Company |
+| **Company** | Get, Get Many, Create, Update, Delete, Tag, Untag |
+| **Deal** | Get, Get Many, Create, Update, Change Phase, Mark as Won, Mark as Lost |
+| **Product** | Get, Get Many, Create, Update, Delete |
+| **Quotation** | Get, Get Many, Create, Update, Delete, Send, Accept |
+| **Invoice** | Get, Get Many, Create Draft, Update Draft, Update Booked, Book, Send, Register Payment, Remove Payments, Download, Credit Fully, Credit Partially |
 
-Access tokens expire after one hour; n8n refreshes them automatically with the stored refresh token.
+Highlights:
 
-## Architecture
+- Searchable dropdowns for contacts, companies, deals, products, quotations and invoices, each with
+  a **By ID** mode so raw IDs and expressions keep working.
+- Dynamic option lists for departments, users, tax rates, withholding tax rates, product categories,
+  units of measure, price lists, payment terms, payment methods, deal pipelines/phases, deal sources,
+  lost reasons, document templates, mail templates, currencies, tags and custom field definitions.
+- Grouped line items for Quotations and Invoices via nested fixed collections, with optional product
+  links, unit of measure, tax rate, discounts and (invoices) product category and withholding tax.
+- Automatic pagination (**Return All** / **Limit**), retries on rate limiting and transient errors,
+  and Teamleader API errors surfaced as readable n8n errors.
+- Empty optional fields are omitted from every request body.
+- **Invoice → Download** returns real n8n binary data (PDF, UBL e-FFF, UBL Peppol BIS 3) in a
+  configurable output field.
 
-```
-credentials/
-  TeamleaderOAuth2Api.credentials.ts   OAuth2 authorization-code credential
-nodes/Teamleader/
-  Teamleader.node.ts                   Node description + execute() dispatcher
-  actions/
-    contact.ts                         Contact operations + payload/filter builders
-    company.ts                         Company operations + payload/filter builders
-  descriptions/
-    SharedFields.ts                    Reusable UI field factories
-    ContactDescription.ts              Contact resource UI
-    CompanyDescription.ts              Company resource UI
-  helpers/
-    GenericFunctions.ts                teamleaderApiRequest / ...AllItems / fetchList
-    interfaces.ts                      Typed API interfaces
-    utils.ts                           Pure transformation helpers (unit tested)
-  methods/
-    loadOptions.ts                     Dynamic dropdowns
-    listSearch.ts                      Searchable resource locators
-test/                                  Jest tests for the helper and transformations
-```
+## Teamleader Trigger
 
-### API helper
+Add the **Teamleader Trigger** node, select one or more event types and activate the workflow. On
+activation the node registers n8n's production webhook URL with Teamleader
+(`webhooks.register`), skipping registration when an equivalent one already exists. On deactivation
+it removes only the registration belonging to that URL (`webhooks.unregister`); registrations of
+other integrations are never touched.
 
-Every Teamleader endpoint is an RPC-style `POST /{resource}.{action}` with a JSON body.
+Supported event groups (official Teamleader webhook types only): account, call, company, contact,
+credit note, deal, invoice, meeting, milestone, product, project (legacy and new), project task,
+subscription, task, ticket, ticket message, time tracking and user. Teamleader currently publishes
+no quotation webhooks.
 
-- `teamleaderApiRequest(endpoint, body)` — one authenticated call, returns the full `{ data, meta }` envelope.
-  Empty `204` responses are normalised to `{}`.
-- `teamleaderApiRequestAllItems(endpoint, body, limit?)` — pages through a `*.list` endpoint using
-  `page: { size, number }` (size clamped to the API maximum of 100) until a short page is returned
-  or the limit is reached.
-- `teamleaderFetchList(endpoint, itemIndex, body)` — honours the node's `Return All` / `Limit` parameters.
+Each event is emitted as a normal n8n item containing the raw Teamleader payload plus `eventType`,
+`entityType` and `entityId` for convenient routing.
 
-Failures are wrapped in `NodeApiError` with the Teamleader `errors[].title` / `detail` message.
-`429`, `502`, `503` and `504` responses are retried up to three times with exponential backoff, so
-the API's sliding-window rate limit does not break a workflow.
-
-### Dynamic options
-
-`loadOptions` methods are available for departments, users, deal pipelines, deal phases (scoped to
-the selected pipeline), deal sources, lost reasons, tax rates (scoped to the selected department),
-payment terms, withholding tax rates, payment methods, business types, product categories, units of
-measure, work types, currencies, invoice/quotation document templates (scoped to department), mail
-templates, tags and custom field definitions.
-
-`listSearch` methods back searchable resource locators for contacts, companies, deals, products,
-invoices and quotations. Every resource locator also accepts a raw ID, so expressions such as
-`{{ $json.company_id }}` work everywhere.
+> **Webhooks require a publicly reachable HTTPS n8n instance.** Teamleader calls the production
+> webhook URL directly, so `localhost`, private IPs and tunnel-less local setups will not receive
+> events. Test URLs are not registered — activate the workflow to receive live events.
 
 ## Development
 
 ```bash
-npm install       # install dependencies
-npm run build     # type-check, compile to dist/ and copy icons
-npm run dev       # tsc --watch
-npm run lint      # eslint (n8n community node rules) for nodes, credentials and package.json
-npm run lintfix   # autofix lint issues
-npm test          # jest unit tests
-npm run format    # prettier
+npm install          # install dependencies
+npm run build        # compile TypeScript to dist/ and copy icons
+npm run dev          # compile in watch mode
+npm test             # run the Jest test suite
+npm run test:watch   # run tests in watch mode
+npm run lint         # eslint for nodes, credentials and package.json
+npm run lintfix      # eslint with --fix
+npm run format       # prettier
 ```
 
-## Testing
-
-Unit tests cover:
-
-- `teamleaderApiRequest`: request shaping (method, URL, body, credential), custom base URL,
-  `204` handling, error wrapping and rate-limit retry behaviour.
-- `teamleaderApiRequestAllItems`: multi-page traversal, limit handling, filter/sort preservation,
-  single-object responses.
-- Pure transformations: pagination clamping, sort mapping, emails/telephones/addresses/custom
-  fields builders, money construction, error formatting, contact and company payload/filter mapping.
-
-Run them with `npm test`.
+Before releasing, `npm run build`, `npm test` and `npm run lint` must all pass.
 
 ## License
 

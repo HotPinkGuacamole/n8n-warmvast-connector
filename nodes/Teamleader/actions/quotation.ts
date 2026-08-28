@@ -153,12 +153,8 @@ function buildRecipient(entry: IDataObject): IDataObject | undefined {
 export function buildRecipients(fields: IDataObject): IDataObject {
 	const recipients: IDataObject = {};
 
-	for (const [key, inner] of [
-		['to', 'recipient'],
-		['cc', 'recipient'],
-		['bcc', 'recipient'],
-	] as const) {
-		const entries = extractCollection(fields[key], inner)
+	for (const key of ['to', 'cc', 'bcc'] as const) {
+		const entries = extractCollection(fields[key], 'recipient')
 			.map(buildRecipient)
 			.filter((entry): entry is IDataObject => entry !== undefined);
 		if (entries.length > 0) recipients[key] = entries;
