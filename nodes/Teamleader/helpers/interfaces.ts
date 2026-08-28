@@ -90,6 +90,7 @@ export interface ITeamleaderLineItem {
 	discount?: { value: number; type: 'percentage' };
 	extended_description?: string;
 	unit_of_measure_id?: string;
+	purchase_price?: ITeamleaderMoney;
 }
 
 export interface ITeamleaderGroupedLineItem {
