@@ -70,6 +70,7 @@ export interface IResolvedProduct {
 	sellingPrice?: number;
 	sellingPriceCurrency?: string;
 	purchasePrice?: number;
+	purchasePriceCurrency?: string;
 	taxRateId?: string;
 	unitOfMeasureId?: string;
 	productCategoryId?: string;
@@ -191,6 +192,50 @@ export async function resolveDeal(context: TeamleaderContext, id: string): Promi
 				: undefined,
 		customer: toResolvedCustomer(lead.customer),
 		contactPerson: toResolvedCustomer(lead.contact_person),
+		raw: data,
+	};
+}
+
+/** Read a `{id, ...}` reference off a `products.info` response field. */
+function referenceId(value: unknown): string | undefined {
+	if (!value || typeof value !== 'object') return undefined;
+	const id = (value as IDataObject).id;
+	return typeof id === 'string' && id.trim() !== '' ? id : undefined;
+}
+
+/**
+ * The `fromProduct` resolver: one `products.info` read, shaped into
+ * `IResolvedProduct`. Generic on purpose — it has no idea whether its caller
+ * is a quotation or invoice line; that distinction lives entirely in the
+ * hydration helper that consumes this context.
+ */
+export async function resolveProduct(
+	context: TeamleaderContext,
+	id: string,
+): Promise<IResolvedProduct> {
+	const response = await teamleaderApiRequest.call(context, '/products.info', { id });
+	const data = (response.data ?? {}) as IDataObject;
+	const sellingPrice = data.selling_price as IDataObject | undefined;
+	const purchasePrice = data.purchase_price as IDataObject | undefined;
+
+	return {
+		id,
+		name: typeof data.name === 'string' ? data.name : undefined,
+		description: typeof data.description === 'string' ? data.description : undefined,
+		code: typeof data.code === 'string' ? data.code : undefined,
+		sellingPrice:
+			sellingPrice && typeof sellingPrice.amount === 'number' ? sellingPrice.amount : undefined,
+		sellingPriceCurrency:
+			sellingPrice && typeof sellingPrice.currency === 'string' ? sellingPrice.currency : undefined,
+		purchasePrice:
+			purchasePrice && typeof purchasePrice.amount === 'number' ? purchasePrice.amount : undefined,
+		purchasePriceCurrency:
+			purchasePrice && typeof purchasePrice.currency === 'string'
+				? purchasePrice.currency
+				: undefined,
+		taxRateId: referenceId(data.tax_rate),
+		unitOfMeasureId: referenceId(data.unit_of_measure),
+		productCategoryId: referenceId(data.product_category),
 		raw: data,
 	};
 }
