@@ -9,8 +9,10 @@ import { NodeOperationError } from 'n8n-workflow';
 
 import { executeCompany } from './actions/company';
 import { executeContact } from './actions/contact';
+import { executeDeal } from './actions/deal';
 import { companyFields, companyOperations } from './descriptions/CompanyDescription';
 import { contactFields, contactOperations } from './descriptions/ContactDescription';
+import { dealFields, dealOperations } from './descriptions/DealDescription';
 import * as loadOptions from './methods/loadOptions';
 import * as listSearch from './methods/listSearch';
 
@@ -44,6 +46,7 @@ export class Teamleader implements INodeType {
 				options: [
 					{ name: 'Company', value: 'company' },
 					{ name: 'Contact', value: 'contact' },
+					{ name: 'Deal', value: 'deal' },
 				],
 				default: 'contact',
 			},
@@ -51,6 +54,8 @@ export class Teamleader implements INodeType {
 			...contactFields,
 			...companyOperations,
 			...companyFields,
+			...dealOperations,
+			...dealFields,
 		],
 	};
 
@@ -76,6 +81,9 @@ export class Teamleader implements INodeType {
 						break;
 					case 'company':
 						results = await executeCompany.call(this, operation, i);
+						break;
+					case 'deal':
+						results = await executeDeal.call(this, operation, i);
 						break;
 					default:
 						throw new NodeOperationError(

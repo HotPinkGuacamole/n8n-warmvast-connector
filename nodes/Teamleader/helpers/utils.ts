@@ -167,6 +167,24 @@ export function buildMoney(
 	return { amount: parsed, currency: currency && currency !== '' ? currency : 'EUR' };
 }
 
+/** Build a customer reference `{ type, id }` as used by the deal `lead` object. */
+export function buildCustomer(type: unknown, id: unknown): { type: string; id: string } | undefined {
+	const customerId = typeof id === 'string' ? id.trim() : '';
+	if (!customerId) return undefined;
+	return { type: type === 'contact' ? 'contact' : 'company', id: customerId };
+}
+
+/** Format a date(-time) value as the `YYYY-MM-DD` string the API expects. */
+export function toApiDate(value: unknown): string | undefined {
+	if (value === undefined || value === null || value === '') return undefined;
+	const asString = String(value);
+	const match = asString.match(/^\d{4}-\d{2}-\d{2}/);
+	if (match) return match[0];
+	const parsed = new Date(asString);
+	if (Number.isNaN(parsed.getTime())) return undefined;
+	return parsed.toISOString().slice(0, 10);
+}
+
 /** Turn the Teamleader `errors` array into a single readable message. */
 export function formatTeamleaderErrors(errors: ITeamleaderError[] | undefined): string | undefined {
 	if (!Array.isArray(errors) || errors.length === 0) return undefined;
