@@ -1,5 +1,8 @@
 import type { IDataObject } from 'n8n-workflow';
 
+import type { TeamleaderContext } from './GenericFunctions';
+import { teamleaderApiRequest } from './GenericFunctions';
+
 /**
  * Shared execution context for V2 operations.
  *
@@ -9,8 +12,9 @@ import type { IDataObject } from 'n8n-workflow';
  * distinct <resolver, id> pair per node execution, no matter how many items or
  * lines reference the same record.
  *
- * Stage 1 provides the cache/typing infrastructure only. Resolvers are registered
- * and wired into operations in later stages; nothing here performs an API call.
+ * Stage 1 provided the cache/typing infrastructure only. Stage 3 adds the first
+ * real resolver (`fromDeal`, below) and its first consumer (Deal Update's
+ * "Contact Person without a customer change").
  */
 
 /** The kinds of records V2 can resolve extra context from. */
@@ -152,4 +156,41 @@ export function contextResolutionMessage(
 		fromProduct: 'the selected product',
 	};
 	return `Could not determine ${what} from ${source[kind]}. Set "${fieldToFill}" explicitly.`;
+}
+
+/** Read a `{type, id}` reference off a `deals.info` response; `undefined` when unusable. */
+function toResolvedCustomer(value: unknown): IResolvedCustomer | undefined {
+	if (!value || typeof value !== 'object') return undefined;
+	const ref = value as IDataObject;
+	const id = typeof ref.id === 'string' && ref.id.trim() !== '' ? ref.id : undefined;
+	const type = ref.type === 'contact' ? 'contact' : ref.type === 'company' ? 'company' : undefined;
+	if (!id || !type) return undefined;
+	return { type, id, raw: ref };
+}
+
+/**
+ * The `fromDeal` resolver: one `deals.info` read, shaped into `IResolvedDeal`.
+ * Only fields reliably present on the response are populated; nothing here
+ * guesses a value `deals.info` does not actually return.
+ */
+export async function resolveDeal(context: TeamleaderContext, id: string): Promise<IResolvedDeal> {
+	const response = await teamleaderApiRequest.call(context, '/deals.info', { id });
+	const data = (response.data ?? {}) as IDataObject;
+	const lead = (data.lead ?? {}) as IDataObject;
+	const department = data.department as IDataObject | undefined;
+	const estimatedValue = data.estimated_value as IDataObject | undefined;
+
+	return {
+		id,
+		title: typeof data.title === 'string' ? data.title : undefined,
+		departmentId:
+			department && typeof department.id === 'string' ? department.id : undefined,
+		currency:
+			estimatedValue && typeof estimatedValue.currency === 'string'
+				? estimatedValue.currency
+				: undefined,
+		customer: toResolvedCustomer(lead.customer),
+		contactPerson: toResolvedCustomer(lead.contact_person),
+		raw: data,
+	};
 }

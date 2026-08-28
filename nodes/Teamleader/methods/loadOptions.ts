@@ -54,6 +54,76 @@ export async function getDealPhases(this: ILoadOptionsFunctions): Promise<INodeP
 		.map((item) => ({ name: (item.name as string) || (item.id as string), value: item.id as string }));
 }
 
+/**
+ * True when a resolved load-options parameter looks like a real Teamleader ID
+ * rather than an unresolved expression placeholder (e.g. `={{ $json.dept }}`).
+ * An unresolved expression must never be sent to the API as a literal filter.
+ */
+function isLiteralId(value: string): boolean {
+	return value.length > 0 && !value.includes('{') && !value.includes('}');
+}
+
+/**
+ * V2 deal phases, scoped to a single pipeline when exactly one is literally
+ * selected. Reads whichever of the two V2 pipeline parameters is present:
+ * the singular `pipelineId` (Create/Update/Change Phase) or the multi-select
+ * `filters.pipelineIds` (Get Many). With zero, multiple, or an unresolved
+ * pipeline the list is unscoped and every label is prefixed with its
+ * pipeline's name so the choice never becomes ambiguous. Phase order is
+ * always preserved (never alphabetised). Kept separate from `getDealPhases`
+ * above so V1 (which has no such scoping relationship) is never affected.
+ */
+export async function getDealPhasesScoped(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	const singular = extractId(this.getCurrentNodeParameter('pipelineId'));
+	const multi = this.getCurrentNodeParameter('filters.pipelineIds');
+	const multiIds = Array.isArray(multi)
+		? multi.filter((value): value is string => typeof value === 'string' && isLiteralId(value))
+		: [];
+
+	const scopedPipelineId = isLiteralId(singular)
+		? singular
+		: multiIds.length === 1
+			? multiIds[0]
+			: undefined;
+
+	if (scopedPipelineId) {
+		const items = await teamleaderApiRequestAllItems.call(this, '/dealPhases.list', {
+			filter: { deal_pipeline_id: scopedPipelineId },
+		});
+		return items
+			.filter((item) => typeof item.id === 'string')
+			.map((item) => ({ name: (item.name as string) || (item.id as string), value: item.id as string }));
+	}
+
+	const [phases, pipelines] = await Promise.all([
+		teamleaderApiRequestAllItems.call(this, '/dealPhases.list', {}),
+		teamleaderApiRequestAllItems.call(this, '/dealPipelines.list', {}),
+	]);
+
+	const pipelineNames = new Map<string, string>();
+	for (const pipeline of pipelines) {
+		if (typeof pipeline.id === 'string') {
+			pipelineNames.set(pipeline.id, (pipeline.name as string) || pipeline.id);
+		}
+	}
+
+	return phases
+		.filter((item) => typeof item.id === 'string')
+		.map((item) => {
+			const pipelineRef = item.deal_pipeline as IDataObject | undefined;
+			const pipelineId =
+				pipelineRef && typeof pipelineRef.id === 'string' ? pipelineRef.id : undefined;
+			const pipelineName = pipelineId ? pipelineNames.get(pipelineId) : undefined;
+			const label = (item.name as string) || (item.id as string);
+			return {
+				name: pipelineName ? `${pipelineName} — ${label}` : label,
+				value: item.id as string,
+			};
+		});
+}
+
 export async function getDealSources(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 	const items = await teamleaderApiRequestAllItems.call(this, '/dealSources.list', {});
 	return toOptions(items, (item) => item.name as string);
@@ -66,7 +136,7 @@ export async function getLostReasons(this: ILoadOptionsFunctions): Promise<INode
 
 export async function getTaxRates(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 	const departmentId = extractId(this.getCurrentNodeParameter('departmentId'));
-	const body: IDataObject = departmentId ? { filter: { department_id: departmentId } } : {};
+	const body: IDataObject = isLiteralId(departmentId) ? { filter: { department_id: departmentId } } : {};
 	const items = await teamleaderApiRequestAllItems.call(this, '/taxRates.list', body);
 	return toOptions(items, (item) => {
 		const description = (item.description as string) ?? '';
@@ -135,7 +205,9 @@ export async function getProductCategories(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {
 	const departmentId = extractId(this.getCurrentNodeParameter('departmentId'));
-	const body: IDataObject = departmentId ? { filter: { department_id: departmentId } } : {};
+	const body: IDataObject = isLiteralId(departmentId)
+		? { filter: { department_id: departmentId } }
+		: {};
 	const items = await teamleaderApiRequestAllItems.call(this, '/productCategories.list', body);
 	return toOptions(items, (item) => item.name as string);
 }

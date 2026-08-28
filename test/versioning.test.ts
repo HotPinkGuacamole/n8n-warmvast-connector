@@ -141,6 +141,8 @@ describe('Teamleader V2 skeleton', () => {
 		expect(resource?.options?.map((option) => (option as { value: string }).value)).toEqual([
 			'company',
 			'contact',
+			'deal',
+			'product',
 		]);
 	});
 });

@@ -3,6 +3,8 @@ import {
 	getBusinessTypes,
 	getCompanyCustomFieldDefinitions,
 	getContactCustomFieldDefinitions,
+	getDealPhases,
+	getDealPhasesScoped,
 	getTags,
 } from '../nodes/Teamleader/methods/loadOptions';
 
@@ -65,6 +67,78 @@ describe('getBusinessTypes', () => {
 	it('falls back to BE for an unusable value such as an unresolved expression', async () => {
 		await getBusinessTypes.call(makeContext({ businessTypeCountry: '={{ $json.country }}' }));
 		expect(requestAll.mock.calls[0][1]).toEqual({ country: 'BE' });
+	});
+});
+
+describe('getDealPhasesScoped', () => {
+	it('scopes to a single literal pipeline and preserves API order', async () => {
+		requestAll.mockResolvedValueOnce([
+			{ id: 'ph-2', name: 'Won' },
+			{ id: 'ph-1', name: 'Proposal' },
+		]);
+
+		const options = await getDealPhasesScoped.call(makeContext({ pipelineId: 'pipe-1' }));
+
+		expect(requestAll.mock.calls[0]).toEqual([
+			'/dealPhases.list',
+			{ filter: { deal_pipeline_id: 'pipe-1' } },
+		]);
+		expect(options).toEqual([
+			{ name: 'Won', value: 'ph-2' },
+			{ name: 'Proposal', value: 'ph-1' },
+		]);
+	});
+
+	it('scopes to the single pipeline from filters.pipelineIds when exactly one is selected', async () => {
+		requestAll.mockResolvedValueOnce([{ id: 'ph-1', name: 'Proposal' }]);
+		await getDealPhasesScoped.call(makeContext({ 'filters.pipelineIds': ['pipe-9'] }));
+		expect(requestAll.mock.calls[0][1]).toEqual({ filter: { deal_pipeline_id: 'pipe-9' } });
+	});
+
+	it('lists every phase prefixed with its pipeline name when no pipeline is selected', async () => {
+		requestAll.mockImplementation(async (endpoint: string) => {
+			if (endpoint === '/dealPhases.list') {
+				return [
+					{ id: 'ph-2', name: 'Won', deal_pipeline: { id: 'pipe-1' } },
+					{ id: 'ph-1', name: 'Proposal', deal_pipeline: { id: 'pipe-1' } },
+				];
+			}
+			return [{ id: 'pipe-1', name: 'Sales' }];
+		});
+
+		const options = await getDealPhasesScoped.call(makeContext({}));
+
+		// Order preserved exactly as returned by the API, never alphabetised.
+		expect(options).toEqual([
+			{ name: 'Sales — Won', value: 'ph-2' },
+			{ name: 'Sales — Proposal', value: 'ph-1' },
+		]);
+	});
+
+	it('falls back to the unscoped list when multiple pipelines are selected', async () => {
+		requestAll.mockImplementation(async (endpoint: string) =>
+			endpoint === '/dealPhases.list' ? [{ id: 'ph-1', name: 'Proposal' }] : [],
+		);
+		const options = await getDealPhasesScoped.call(
+			makeContext({ 'filters.pipelineIds': ['pipe-1', 'pipe-2'] }),
+		);
+		expect(options).toEqual([{ name: 'Proposal', value: 'ph-1' }]);
+	});
+
+	it('stays usable when the pipeline scope is an unresolved expression', async () => {
+		requestAll.mockImplementation(async (endpoint: string) =>
+			endpoint === '/dealPhases.list' ? [{ id: 'ph-1', name: 'Proposal' }] : [],
+		);
+		const options = await getDealPhasesScoped.call(
+			makeContext({ pipelineId: '={{ $json.pipeline }}' }),
+		);
+		expect(options.length).toBeGreaterThan(0);
+	});
+
+	it('does not change the V1 getDealPhases loader, which stays unscoped-and-unprefixed with no pipeline', async () => {
+		requestAll.mockResolvedValueOnce([{ id: 'ph-1', name: 'Proposal' }]);
+		const options = await getDealPhases.call(makeContext({}));
+		expect(options).toEqual([{ name: 'Proposal', value: 'ph-1' }]);
 	});
 });
 
