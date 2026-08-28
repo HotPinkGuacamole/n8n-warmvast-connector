@@ -91,6 +91,8 @@ export interface ITeamleaderLineItem {
 	extended_description?: string;
 	unit_of_measure_id?: string;
 	purchase_price?: ITeamleaderMoney;
+	product_category_id?: string;
+	withholding_tax_rate_id?: string;
 }
 
 export interface ITeamleaderGroupedLineItem {

@@ -10,11 +10,13 @@ import { NodeOperationError } from 'n8n-workflow';
 import { executeCompany } from './actions/company';
 import { executeContact } from './actions/contact';
 import { executeDeal } from './actions/deal';
+import { executeInvoice } from './actions/invoice';
 import { executeProduct } from './actions/product';
 import { executeQuotation } from './actions/quotation';
 import { companyFields, companyOperations } from './descriptions/CompanyDescription';
 import { contactFields, contactOperations } from './descriptions/ContactDescription';
 import { dealFields, dealOperations } from './descriptions/DealDescription';
+import { invoiceFields, invoiceOperations } from './descriptions/InvoiceDescription';
 import { productFields, productOperations } from './descriptions/ProductDescription';
 import { quotationFields, quotationOperations } from './descriptions/QuotationDescription';
 import * as loadOptions from './methods/loadOptions';
@@ -51,6 +53,7 @@ export class Teamleader implements INodeType {
 					{ name: 'Company', value: 'company' },
 					{ name: 'Contact', value: 'contact' },
 					{ name: 'Deal', value: 'deal' },
+					{ name: 'Invoice', value: 'invoice' },
 					{ name: 'Product', value: 'product' },
 					{ name: 'Quotation', value: 'quotation' },
 				],
@@ -66,6 +69,8 @@ export class Teamleader implements INodeType {
 			...productFields,
 			...quotationOperations,
 			...quotationFields,
+			...invoiceOperations,
+			...invoiceFields,
 		],
 	};
 
@@ -83,7 +88,7 @@ export class Teamleader implements INodeType {
 
 		for (let i = 0; i < items.length; i++) {
 			try {
-				let results: IDataObject[];
+				let results: IDataObject[] | INodeExecutionData[];
 
 				switch (resource) {
 					case 'contact':
@@ -101,6 +106,9 @@ export class Teamleader implements INodeType {
 					case 'quotation':
 						results = await executeQuotation.call(this, operation, i);
 						break;
+					case 'invoice':
+						results = await executeInvoice.call(this, operation, i);
+						break;
 					default:
 						throw new NodeOperationError(
 							this.getNode(),
@@ -109,11 +117,26 @@ export class Teamleader implements INodeType {
 						);
 				}
 
-				returnData.push(
-					...this.helpers.constructExecutionMetaData(this.helpers.returnJsonArray(results), {
-						itemData: { item: i },
-					}),
+				// Binary-producing operations (e.g. invoice download) already return execution data.
+				const isExecutionData = results.some(
+					(entry) => (entry as INodeExecutionData).binary !== undefined,
 				);
+
+				if (isExecutionData) {
+					returnData.push(
+						...(results as INodeExecutionData[]).map((entry) => ({
+							...entry,
+							pairedItem: { item: i },
+						})),
+					);
+				} else {
+					returnData.push(
+						...this.helpers.constructExecutionMetaData(
+							this.helpers.returnJsonArray(results as IDataObject[]),
+							{ itemData: { item: i } },
+						),
+					);
+				}
 			} catch (error) {
 				if (this.continueOnFail()) {
 					returnData.push({
