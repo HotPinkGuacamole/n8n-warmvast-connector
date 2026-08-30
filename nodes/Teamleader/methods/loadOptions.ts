@@ -5,6 +5,12 @@ import type {
 } from 'n8n-workflow';
 
 import { extractId, teamleaderApiRequestAllItems } from '../helpers/GenericFunctions';
+import {
+	departmentNames,
+	isLiteralId,
+	listDepartments,
+	resolveLookupDepartmentId,
+} from '../helpers/lookupContext';
 
 function toOptions(
 	items: IDataObject[],
@@ -52,15 +58,6 @@ export async function getDealPhases(this: ILoadOptionsFunctions): Promise<INodeP
 	return items
 		.filter((item) => typeof item.id === 'string')
 		.map((item) => ({ name: (item.name as string) || (item.id as string), value: item.id as string }));
-}
-
-/**
- * True when a resolved load-options parameter looks like a real Teamleader ID
- * rather than an unresolved expression placeholder (e.g. `={{ $json.dept }}`).
- * An unresolved expression must never be sent to the API as a literal filter.
- */
-function isLiteralId(value: string): boolean {
-	return value.length > 0 && !value.includes('{') && !value.includes('}');
 }
 
 /**
@@ -134,15 +131,18 @@ export async function getLostReasons(this: ILoadOptionsFunctions): Promise<INode
 	return toOptions(items, (item) => item.name as string);
 }
 
+/** Human label for a tax rate: its description plus the percentage, e.g. "21% BTW". */
+function taxRateLabel(item: IDataObject): string {
+	const description = (item.description as string) ?? '';
+	const rate = typeof item.rate === 'number' ? ` (${Math.round(item.rate * 10000) / 100}%)` : '';
+	return `${description}${description.includes('%') ? '' : rate}`.trim();
+}
+
 export async function getTaxRates(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 	const departmentId = extractId(this.getCurrentNodeParameter('departmentId'));
 	const body: IDataObject = isLiteralId(departmentId) ? { filter: { department_id: departmentId } } : {};
 	const items = await teamleaderApiRequestAllItems.call(this, '/taxRates.list', body);
-	return toOptions(items, (item) => {
-		const description = (item.description as string) ?? '';
-		const rate = typeof item.rate === 'number' ? ` (${Math.round(item.rate * 10000) / 100}%)` : '';
-		return `${description}${description.includes('%') ? '' : rate}`.trim();
-	});
+	return toOptions(items, taxRateLabel);
 }
 
 export async function getPaymentTerms(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
@@ -272,6 +272,115 @@ export async function getQuotationTemplates(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {
 	return await documentTemplates(this, 'quotation');
+}
+
+/**
+ * Document templates for a form whose department is lookup *context* rather
+ * than a field: V2 Quotation derives it from the selected Deal or from the
+ * explicit Lookup Department Override (see `helpers/lookupContext.ts`).
+ *
+ * `documentTemplates.list` requires a department, so with no usable context the
+ * templates of every active department are listed instead of returning nothing.
+ * Those labels are prefixed with the department name, because two departments
+ * routinely have a template with the same name.
+ */
+async function scopedDocumentTemplates(
+	context: ILoadOptionsFunctions,
+	documentType: string,
+): Promise<INodePropertyOptions[]> {
+	const templatesOf = async (departmentId: string) =>
+		await teamleaderApiRequestAllItems.call(context, '/documentTemplates.list', {
+			filter: { department_id: departmentId, document_type: documentType, status: ['active'] },
+		});
+
+	const scopedDepartmentId = await resolveLookupDepartmentId(context);
+	if (scopedDepartmentId) {
+		return toOptions(await templatesOf(scopedDepartmentId), (item) => item.name as string);
+	}
+
+	const results: INodePropertyOptions[] = [];
+	for (const department of await listDepartments(context, true)) {
+		if (typeof department.id !== 'string') continue;
+		const departmentName = (department.name as string) || department.id;
+		const items = await templatesOf(department.id);
+		results.push(
+			...toOptions(items, (item) => `${departmentName} — ${(item.name as string) ?? ''}`.trim()),
+		);
+	}
+
+	return results.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getQuotationTemplatesScoped(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	return await scopedDocumentTemplates(this, 'quotation');
+}
+
+/**
+ * Label an unscoped list with the department each entry belongs to, so an
+ * ambiguous "21%" never appears twice with no way to tell the two apart.
+ * Entries whose department is unknown keep their plain label.
+ */
+async function withDepartmentPrefix(
+	context: ILoadOptionsFunctions,
+	items: IDataObject[],
+	labelFn: (item: IDataObject) => string,
+): Promise<INodePropertyOptions[]> {
+	const departmentOf = (item: IDataObject): string | undefined => {
+		const reference = item.department as IDataObject | undefined;
+		return reference && typeof reference.id === 'string' ? reference.id : undefined;
+	};
+
+	if (!items.some((item) => departmentOf(item) !== undefined)) {
+		return toOptions(items, labelFn);
+	}
+
+	const names = await departmentNames(context);
+	return toOptions(items, (item) => {
+		const departmentId = departmentOf(item);
+		const departmentName = departmentId ? names.get(departmentId) : undefined;
+		const label = labelFn(item);
+		return departmentName ? `${departmentName} — ${label}` : label;
+	});
+}
+
+/**
+ * Tax rates for a quotation/invoice line. Narrowed to the document's lookup
+ * department when one can be determined, otherwise every tax rate is offered
+ * with its department in the label — an expression in the Deal field must never
+ * turn this selector into an empty dropdown.
+ */
+export async function getDocumentLineTaxRates(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	const departmentId = await resolveLookupDepartmentId(this);
+	const items = await teamleaderApiRequestAllItems.call(
+		this,
+		'/taxRates.list',
+		departmentId ? { filter: { department_id: departmentId } } : {},
+	);
+
+	return departmentId
+		? toOptions(items, taxRateLabel)
+		: await withDepartmentPrefix(this, items, taxRateLabel);
+}
+
+/** Product categories for a document line, scoped exactly like the tax rates above. */
+export async function getDocumentLineProductCategories(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	const departmentId = await resolveLookupDepartmentId(this);
+	const items = await teamleaderApiRequestAllItems.call(
+		this,
+		'/productCategories.list',
+		departmentId ? { filter: { department_id: departmentId } } : {},
+	);
+
+	const label = (item: IDataObject) => (item.name as string) ?? (item.id as string);
+	return departmentId
+		? toOptions(items, label)
+		: await withDepartmentPrefix(this, items, label);
 }
 
 /**

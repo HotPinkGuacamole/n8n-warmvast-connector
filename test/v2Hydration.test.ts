@@ -1,7 +1,7 @@
 import { TeamleaderExecutionContext } from '../nodes/Teamleader/helpers/context';
 import * as generic from '../nodes/Teamleader/helpers/GenericFunctions';
 import { INVOICE_LINE_CONFIG, QUOTATION_LINE_CONFIG } from '../nodes/Teamleader/v2/descriptions/LineEditor';
-import { hydrateAndValidateLines } from '../nodes/Teamleader/v2/helpers/hydration';
+import { attachWarnings, hydrateAndValidateLines } from '../nodes/Teamleader/v2/helpers/hydration';
 import type { INormalizedLine } from '../nodes/Teamleader/v2/helpers/lines';
 
 jest.mock('../nodes/Teamleader/helpers/GenericFunctions', () => {
@@ -547,5 +547,43 @@ describe('Discount intent', () => {
 				'EUR',
 			),
 		).rejects.toThrow('invalid discount');
+	});
+});
+
+describe('attachWarnings', () => {
+	it('leaves the item untouched when there is nothing to report', () => {
+		const data = { id: 'quotation-1' };
+		expect(attachWarnings(data, [])).toBe(data);
+		expect(Object.keys(attachWarnings(data, []))).not.toContain('_warnings');
+	});
+
+	it('adds the connector-owned _warnings field', () => {
+		expect(attachWarnings({ id: 'quotation-1' }, ['currency mismatch'])).toEqual({
+			id: 'quotation-1',
+			_warnings: ['currency mismatch'],
+		});
+	});
+
+	it('never overwrites a response property that is already called _warnings', () => {
+		const result = attachWarnings({ id: 'q1', _warnings: 'from Teamleader' }, ['ours']);
+		expect(result._warnings).toBe('from Teamleader');
+		expect(result._connectorWarnings).toEqual(['ours']);
+	});
+
+	it('keeps looking for a free key rather than clobbering anything', () => {
+		const result = attachWarnings(
+			{ _warnings: 1, _connectorWarnings: 2, _connectorWarnings_2: 3 },
+			['ours'],
+		);
+		expect(result._connectorWarnings_3).toEqual(['ours']);
+		expect(result._warnings).toBe(1);
+		expect(result._connectorWarnings).toBe(2);
+		expect(result._connectorWarnings_2).toBe(3);
+	});
+
+	it('does not mutate the object it was given', () => {
+		const data = { id: 'quotation-1' };
+		attachWarnings(data, ['something']);
+		expect(data).toEqual({ id: 'quotation-1' });
 	});
 });

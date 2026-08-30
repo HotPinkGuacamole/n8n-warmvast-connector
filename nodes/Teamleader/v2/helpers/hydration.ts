@@ -23,6 +23,27 @@ export interface IHydratedLines {
 	warnings: string[];
 }
 
+/**
+ * Surface hydration warnings on the n8n output item, never in the request.
+ *
+ * Call this only with the Teamleader response in hand: warnings describe what
+ * the connector did while assembling the payload, so they belong to the result,
+ * not to the payload. `_warnings` is the connector-owned key; if Teamleader
+ * itself ever returned a property with that name it is left untouched and a
+ * free key is used instead, because a response value must never be overwritten.
+ */
+export function attachWarnings(data: IDataObject, warnings: string[]): IDataObject {
+	if (warnings.length === 0) return data;
+
+	let key = '_warnings';
+	if (key in data) {
+		key = '_connectorWarnings';
+		for (let suffix = 2; key in data; suffix++) key = `_connectorWarnings_${suffix}`;
+	}
+
+	return { ...data, [key]: warnings };
+}
+
 function numberOrUndefined(value: unknown): number | undefined {
 	if (value === undefined || value === null || value === '') return undefined;
 	const parsed = typeof value === 'number' ? value : Number(value);

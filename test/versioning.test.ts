@@ -143,6 +143,7 @@ describe('Teamleader V2 skeleton', () => {
 			'contact',
 			'deal',
 			'product',
+			'quotation',
 		]);
 	});
 });

@@ -134,12 +134,19 @@ export async function searchInvoices(
 	);
 }
 
+/**
+ * `quotations.list` has no term filter, so a typed search can only match inside
+ * the page already loaded. That is filtered client-side here and stated in the
+ * locator's hint ("Recent quotations; use By ID for older ones") — the picker
+ * never pretends to search the whole history. Pagination stays driven by the
+ * raw page size so paging past a filtered page still works.
+ */
 export async function searchQuotations(
 	this: ILoadOptionsFunctions,
-	_filterTerm?: string,
+	filterTerm?: string,
 	paginationToken?: string,
 ): Promise<INodeListSearchResult> {
-	return await search(
+	const page = await search(
 		this,
 		'/quotations.list',
 		{},
@@ -149,4 +156,16 @@ export async function searchQuotations(
 		},
 		paginationToken,
 	);
+
+	const term = filterTerm?.trim().toLowerCase();
+	if (!term) return page;
+
+	return {
+		...page,
+		results: page.results.filter(
+			(result) =>
+				result.name.toLowerCase().includes(term) ||
+				String(result.value).toLowerCase().includes(term),
+		),
+	};
 }

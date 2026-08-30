@@ -39,7 +39,10 @@ export const INVOICE_LINE_CONFIG: ILineDocumentConfig = {
 	hasWithholdingTax: true,
 };
 
-function scopeShow(scope: IDisplayScope, extra: Record<string, unknown> = {}) {
+/** Extra `displayOptions.show` conditions layered on top of resource/operation. */
+export type IExtraShow = Record<string, unknown>;
+
+function scopeShow(scope: IDisplayScope, extra: IExtraShow = {}) {
 	return {
 		show: {
 			resource: [scope.resource],
@@ -86,7 +89,7 @@ export function lineOptionsField(config: ILineDocumentConfig): INodeProperties {
 			displayName: 'Tax Rate Name or ID',
 			name: 'taxRateId',
 			type: 'options',
-			typeOptions: { loadOptionsMethod: 'getTaxRates' },
+			typeOptions: { loadOptionsMethod: 'getDocumentLineTaxRates' },
 			default: '',
 			description:
 				'Product mode only: overrides the tax rate read from the product. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
@@ -127,7 +130,7 @@ export function lineOptionsField(config: ILineDocumentConfig): INodeProperties {
 			displayName: 'Product Category Name or ID',
 			name: 'productCategoryId',
 			type: 'options',
-			typeOptions: { loadOptionsMethod: 'getProductCategories' },
+			typeOptions: { loadOptionsMethod: 'getDocumentLineProductCategories' },
 			default: '',
 			description:
 				'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
@@ -239,7 +242,7 @@ export function lineValueFields(config: ILineDocumentConfig): INodeProperties[] 
 			displayName: 'Tax Rate Name or ID',
 			name: 'taxRateId',
 			type: 'options',
-			typeOptions: { loadOptionsMethod: 'getTaxRates' },
+			typeOptions: { loadOptionsMethod: 'getDocumentLineTaxRates' },
 			default: '',
 			description:
 				'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
@@ -250,19 +253,23 @@ export function lineValueFields(config: ILineDocumentConfig): INodeProperties[] 
 }
 
 /** `Section Title` — top-level, next to `Lines`, hidden once multi-section mode is on. */
-export function sectionTitleField(scope: IDisplayScope): INodeProperties {
+export function sectionTitleField(scope: IDisplayScope, extraShow: IExtraShow = {}): INodeProperties {
 	return {
 		displayName: 'Section Title',
 		name: 'sectionTitle',
 		type: 'string',
 		default: '',
 		description: 'Optional heading shown above these lines on the document',
-		displayOptions: scopeShow(scope, { useSections: [false] }),
+		displayOptions: scopeShow(scope, { ...extraShow, useSections: [false] }),
 	};
 }
 
 /** The normal, one-level `Lines` editor. Hidden once multi-section mode is on. */
-export function simpleLinesField(scope: IDisplayScope, config: ILineDocumentConfig): INodeProperties {
+export function simpleLinesField(
+	scope: IDisplayScope,
+	config: ILineDocumentConfig,
+	extraShow: IExtraShow = {},
+): INodeProperties {
 	return {
 		displayName: 'Lines',
 		name: 'lines',
@@ -270,7 +277,7 @@ export function simpleLinesField(scope: IDisplayScope, config: ILineDocumentConf
 		typeOptions: { multipleValues: true },
 		placeholder: 'Add Line',
 		default: {},
-		displayOptions: scopeShow(scope, { useSections: [false] }),
+		displayOptions: scopeShow(scope, { ...extraShow, useSections: [false] }),
 		options: [
 			{
 				displayName: 'Line',
@@ -287,7 +294,11 @@ export function simpleLinesField(scope: IDisplayScope, config: ILineDocumentConf
  * multi-section document still hydrates products the same way a simple one
  * does. Shown only once `Use Multiple Sections` is explicitly turned on.
  */
-export function groupedLinesField(scope: IDisplayScope, config: ILineDocumentConfig): INodeProperties {
+export function groupedLinesField(
+	scope: IDisplayScope,
+	config: ILineDocumentConfig,
+	extraShow: IExtraShow = {},
+): INodeProperties {
 	return {
 		displayName: 'Grouped Lines',
 		name: 'groupedLines',
@@ -296,7 +307,7 @@ export function groupedLinesField(scope: IDisplayScope, config: ILineDocumentCon
 		placeholder: 'Add Line Group',
 		default: {},
 		description: 'Groups of lines, each with its own optional section title',
-		displayOptions: scopeShow(scope, { useSections: [true] }),
+		displayOptions: scopeShow(scope, { ...extraShow, useSections: [true] }),
 		options: [
 			{
 				displayName: 'Group',
@@ -331,7 +342,7 @@ export function groupedLinesField(scope: IDisplayScope, config: ILineDocumentCon
 }
 
 /** `Use Multiple Sections` — common/secondary; the escape hatch, not the normal workflow. */
-export function useSectionsField(scope: IDisplayScope): INodeProperties {
+export function useSectionsField(scope: IDisplayScope, extraShow: IExtraShow = {}): INodeProperties {
 	return {
 		displayName: 'Use Multiple Sections',
 		name: 'useSections',
@@ -339,19 +350,28 @@ export function useSectionsField(scope: IDisplayScope): INodeProperties {
 		default: false,
 		description:
 			'Whether to split the lines into several named sections. Most documents need only one — leave this off and use Section Title above instead.',
-		displayOptions: scopeShow(scope),
+		displayOptions: scopeShow(scope, extraShow),
 	};
 }
 
 /**
  * The complete line-editor field set for one operation. Stage 5 (Quotation)
  * and Stage 6 (Invoice) consume this instead of declaring their own lines UI.
+ *
+ * `extraShow` adds one more display condition to every field of the editor at
+ * once. Quotation Update uses it for `replaceLines: [true]`, so the whole
+ * editor stays hidden — and therefore unread and unhydrated — until replacing
+ * the existing lines has been asked for explicitly.
  */
-export function lineEditorFields(scope: IDisplayScope, config: ILineDocumentConfig): INodeProperties[] {
+export function lineEditorFields(
+	scope: IDisplayScope,
+	config: ILineDocumentConfig,
+	extraShow: IExtraShow = {},
+): INodeProperties[] {
 	return [
-		sectionTitleField(scope),
-		simpleLinesField(scope, config),
-		groupedLinesField(scope, config),
-		useSectionsField(scope),
+		sectionTitleField(scope, extraShow),
+		simpleLinesField(scope, config, extraShow),
+		groupedLinesField(scope, config, extraShow),
+		useSectionsField(scope, extraShow),
 	];
 }

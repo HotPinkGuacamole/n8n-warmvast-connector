@@ -6,7 +6,7 @@ import {
 	lineEditorFields,
 	lineValueFields,
 } from '../nodes/Teamleader/v2/descriptions/LineEditor';
-import { assembleLineGroups } from '../nodes/Teamleader/v2/helpers/lines';
+import { assembleLineGroups, countLines } from '../nodes/Teamleader/v2/helpers/lines';
 
 const scope = { resource: 'quotation', operations: ['create'] };
 
@@ -137,5 +137,56 @@ describe('assembleLineGroups — multi-section path', () => {
 		expect(groups.map((group) => group.title)).toEqual(['Group A', 'Group B']);
 		expect(groups[0].lines.map((line) => line.description)).toEqual(['1', '2']);
 		expect(groups[1].lines.map((line) => line.description)).toEqual(['3']);
+	});
+});
+
+describe('countLines', () => {
+	it('counts the real line items across every group', () => {
+		const groups = assembleLineGroups({
+			useSections: true,
+			groupedLines: {
+				group: [
+					{ title: 'A', lineItems: { item: [{ description: '1' }, { description: '2' }] } },
+					{ title: 'B', lineItems: { item: [{ description: '3' }] } },
+				],
+			},
+		});
+		expect(countLines(groups)).toBe(3);
+	});
+
+	it('does not count an empty section shell as a line', () => {
+		const groups = assembleLineGroups({
+			useSections: true,
+			groupedLines: { group: [{ title: 'Empty', lineItems: {} }] },
+		});
+		expect(groups).toHaveLength(1);
+		expect(countLines(groups)).toBe(0);
+	});
+
+	it('counts nothing for an untouched editor', () => {
+		expect(countLines(assembleLineGroups({ useSections: false, lines: {} }))).toBe(0);
+	});
+});
+
+describe('Extra display conditions', () => {
+	it('layer onto every editor field at once, keeping the useSections rules intact', () => {
+		const fields = lineEditorFields(scope, QUOTATION_LINE_CONFIG, { replaceLines: [true] });
+
+		for (const field of fields) {
+			expect(field.displayOptions?.show?.replaceLines).toEqual([true]);
+		}
+		expect(fields.find((field) => field.name === 'lines')?.displayOptions?.show?.useSections).toEqual([
+			false,
+		]);
+		expect(
+			fields.find((field) => field.name === 'groupedLines')?.displayOptions?.show?.useSections,
+		).toEqual([true]);
+	});
+
+	it('adds nothing when no extra condition is given', () => {
+		const fields = lineEditorFields(scope, QUOTATION_LINE_CONFIG);
+		for (const field of fields) {
+			expect(field.displayOptions?.show?.replaceLines).toBeUndefined();
+		}
 	});
 });

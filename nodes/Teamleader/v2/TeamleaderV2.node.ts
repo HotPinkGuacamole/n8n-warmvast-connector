@@ -15,10 +15,12 @@ import { executeCompany } from './actions/company';
 import { executeContact } from './actions/contact';
 import { executeDeal } from './actions/deal';
 import { executeProduct } from './actions/product';
+import { executeQuotation } from './actions/quotation';
 import { companyFields, companyOperations } from './descriptions/CompanyDescription';
 import { contactFields, contactOperations } from './descriptions/ContactDescription';
 import { dealFields, dealOperations } from './descriptions/DealDescription';
 import { productFields, productOperations } from './descriptions/ProductDescription';
+import { quotationFields, quotationOperations } from './descriptions/QuotationDescription';
 import { v2ResourceField } from './descriptions/V2Common';
 
 /**
@@ -54,6 +56,7 @@ export class TeamleaderV2 implements INodeType {
 					{ name: 'Contact', value: 'contact' },
 					{ name: 'Deal', value: 'deal' },
 					{ name: 'Product', value: 'product' },
+					{ name: 'Quotation', value: 'quotation' },
 				]),
 				...contactOperations,
 				...contactFields,
@@ -63,6 +66,8 @@ export class TeamleaderV2 implements INodeType {
 				...dealFields,
 				...productOperations,
 				...productFields,
+				...quotationOperations,
+				...quotationFields,
 			],
 		};
 	}
@@ -99,6 +104,9 @@ export class TeamleaderV2 implements INodeType {
 						break;
 					case 'product':
 						results = await executeProduct.call(this, operation, i);
+						break;
+					case 'quotation':
+						results = await executeQuotation.call(this, operation, i, executionContext);
 						break;
 					default:
 						throw new NodeOperationError(

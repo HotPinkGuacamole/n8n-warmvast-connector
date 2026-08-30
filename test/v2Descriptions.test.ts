@@ -28,13 +28,14 @@ const names = (fields: INodeProperties[]) => fields.map((field) => field.name);
 describe('V2 exposes exactly the migrated resources', () => {
 	const v2 = new Teamleader().getNodeType(2);
 
-	it('offers Contact, Company, Deal and Product only', () => {
+	it('offers Contact, Company, Deal, Product and Quotation only', () => {
 		const resource = v2.description.properties.find((property) => property.name === 'resource');
 		expect(resource?.options?.map((option) => (option as { value: string }).value)).toEqual([
 			'company',
 			'contact',
 			'deal',
 			'product',
+			'quotation',
 		]);
 	});
 

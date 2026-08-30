@@ -59,6 +59,17 @@ export function normalizeGroupedLines(value: unknown): INormalizedGroup[] {
 }
 
 /**
+ * How many real line items the editor produced, across every group.
+ *
+ * Used for the "a document needs lines or text" guards: an empty section shell
+ * (a group with a title but no line items) is not a line, so counting groups —
+ * or merely checking that the fixedCollection object exists — would be wrong.
+ */
+export function countLines(groups: INormalizedGroup[]): number {
+	return groups.reduce((total, group) => total + group.lines.length, 0);
+}
+
+/**
  * Single entry point for both editor paths (§E.4 of the spec): power path
  * uses `Grouped Lines` as-is; normal path wraps `Lines` + `Section Title`
  * into the same one-group shape. Line/group order is preserved exactly as

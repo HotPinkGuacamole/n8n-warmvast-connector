@@ -150,6 +150,12 @@ export function resourceLocatorField(options: {
 	description: string;
 	placeholder?: string;
 	required?: boolean;
+	/**
+	 * Shown under the From List picker. Use it wherever the underlying endpoint
+	 * has no term filter, so the list can only match what it already loaded —
+	 * the user is told that instead of assuming a full server-side search.
+	 */
+	listHint?: string;
 }): INodeProperties {
 	return {
 		displayName: options.displayName,
@@ -169,6 +175,7 @@ export function resourceLocatorField(options: {
 					searchListMethod: options.searchListMethod,
 					searchable: true,
 				},
+				...(options.listHint ? { hint: options.listHint } : {}),
 			},
 			{
 				displayName: 'By ID',
