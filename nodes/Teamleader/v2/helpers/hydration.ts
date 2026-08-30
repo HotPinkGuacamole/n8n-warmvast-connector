@@ -222,9 +222,15 @@ async function hydrateLine(
 		}
 
 		if (config.hasPurchasePrice) {
+			// `purchase_price` must be in the ACCOUNT currency, not the document
+			// currency (quotations.create). The public API exposes no way to read
+			// the account currency, but a product's own purchase price is stored
+			// in it — so when a product was hydrated its currency is authoritative,
+			// for a manual override amount too. Only without one do we fall back
+			// to the document currency, which is what the field description asks
+			// the user to supply.
 			const amount = overridePurchasePrice ?? product?.purchasePrice;
-			const currency = overridePurchasePrice !== undefined ? documentCurrency : product?.purchasePriceCurrency;
-			purchasePrice = buildMoney(amount, currency ?? documentCurrency);
+			purchasePrice = buildMoney(amount, product?.purchasePriceCurrency ?? documentCurrency);
 			if (
 				overridePurchasePrice === undefined &&
 				product?.purchasePriceCurrency &&

@@ -121,7 +121,8 @@ export function lineOptionsField(config: ILineDocumentConfig): INodeProperties {
 			type: 'number',
 			typeOptions: { numberPrecision: 2 },
 			default: 0,
-			description: 'Must be in the account currency',
+			description:
+				"Sent in your Teamleader account currency, not the document currency. On a product line the product's own purchase-price currency is used.",
 		});
 	}
 

@@ -299,7 +299,7 @@ export const quotationFields: INodeProperties[] = [
 	...lineEditorFields(scope('create'), QUOTATION_LINE_CONFIG),
 	introductionTextField(
 		['create'],
-		'Free text shown on the quotation, in Markdown. A quotation needs at least one line or some text.',
+		"Free text shown on the quotation, in Markdown. A quotation needs at least one line or some text. Teamleader's saved introduction-text templates cannot be selected through its API, so paste or build the text here.",
 	),
 	expiresAfterField(['create']),
 	actionAfterExpiryField(['create']),

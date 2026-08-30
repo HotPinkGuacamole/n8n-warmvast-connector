@@ -82,6 +82,37 @@ Description, Unit Price, Tax, Unit of Measure, Product Category, Purchase Price,
 
 Product hydration happens only at execution time; never pretend n8n can reactively auto-fill line editor fields.
 
+### Document text templates are not in the public API
+
+Teamleader's UI offers a saved template selector for the quotation introduction
+text (*"Template begeleidende tekst"*). Verified against the official API
+blueprint (`teamleadercrm/api`, `apiary.apib`): the public API exposes **no**
+endpoint for these saved document text templates. The only template endpoints
+are `documentTemplates.list` (PDF/layout) and `mailTemplates.list` (e-mail
+subject/body). `quotations.create`/`.update` accept only a resolved `text`
+string, and invoices accept only a plain `note`.
+
+Therefore:
+
+- Do not add a `Text Source` selector offering a Teamleader template option.
+- Do not invent, guess or probe an endpoint for it.
+- Do not call undocumented internal web endpoints for it.
+- Keep the plain `Introduction Text` / `Note` fields and say honestly in the
+  field description that Teamleader's saved text templates cannot be selected
+  through the API.
+- Recheck only if Teamleader publishes such an endpoint.
+
+Keep three concepts strictly separate in code and in descriptions:
+`Document Template` (layout), document text (`text` / `note`), and
+`Mail Template` (send-time e-mail body).
+
+### Purchase price currency
+
+Quotation line `purchase_price` must be in the **account** currency, not the
+document currency, and the public API exposes no way to read the account
+currency. A hydrated product's own `purchase_price.currency` is authoritative
+whenever a product was read; only without one is the document currency used.
+
 ### Quotation Send recipients
 
 Quotation Send must eventually expose `Recipient Source` with:

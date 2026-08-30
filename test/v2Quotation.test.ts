@@ -920,3 +920,50 @@ describe('searchQuotations backs the locator honestly', () => {
 		expect(result.results.map((entry) => entry.value)).toEqual(['q-1']);
 	});
 });
+
+describe('Quotation failure paths stay actionable', () => {
+	it('names the product and line when a product no longer exists', async () => {
+		apiRequest.mockImplementation(async (endpoint: string) => {
+			if (endpoint === '/products.info') {
+				const error = Object.assign(new Error('Not found'), { httpCode: '404' });
+				throw error;
+			}
+			return { data: {} };
+		});
+
+		await expect(
+			run('create', {
+				dealId: { mode: 'list', value: 'deal-1' },
+				lines: simpleLines(customLine(), productLine({ productId: { mode: 'id', value: 'gone-1' } })),
+			}),
+		).rejects.toThrow('Could not load Product gone-1 for line 2');
+
+		// The quotation was never created.
+		expect(apiRequest.mock.calls.map((call) => call[0])).not.toContain('/quotations.create');
+	});
+
+	it('surfaces a Teamleader API failure instead of hiding it behind a fallback', async () => {
+		apiRequest.mockRejectedValue(new Error('Teamleader API request to "/quotations.create" failed'));
+
+		await expect(
+			run('create', { dealId: { mode: 'list', value: 'deal-1' }, text: 'Offer' }),
+		).rejects.toThrow('/quotations.create');
+	});
+
+	it('requires a quotation ID rather than sending an empty one', async () => {
+		await expect(run('accept', { quotationId: { mode: 'id', value: '' } })).rejects.toThrow(
+			'quotationId',
+		);
+		expect(apiRequest).not.toHaveBeenCalled();
+	});
+
+	it('rejects an out-of-range line discount before creating anything', async () => {
+		await expect(
+			run('create', {
+				dealId: { mode: 'list', value: 'deal-1' },
+				lines: simpleLines(customLine({ lineOptions: { discount: 150 } })),
+			}),
+		).rejects.toThrow('invalid discount');
+		expect(apiRequest).not.toHaveBeenCalled();
+	});
+});

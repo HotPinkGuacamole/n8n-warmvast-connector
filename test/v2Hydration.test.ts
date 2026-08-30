@@ -587,3 +587,81 @@ describe('attachWarnings', () => {
 		expect(data).toEqual({ id: 'quotation-1' });
 	});
 });
+
+/**
+ * `quotations.create` requires `purchase_price` in the ACCOUNT currency, not the
+ * document currency, and the public API exposes no way to read the account
+ * currency. A hydrated product's own purchase price is stored in it, so that
+ * currency is authoritative whenever we have it.
+ */
+describe('Purchase price currency (quotation only)', () => {
+	beforeEach(() => {
+		apiRequest.mockResolvedValue({
+			data: {
+				id: 'product-1',
+				name: 'Widget',
+				selling_price: { amount: 50, currency: 'USD' },
+				purchase_price: { amount: 20, currency: 'EUR' },
+				tax_rate: { id: 'tax-9' },
+			},
+		});
+	});
+
+	it("uses the product's purchase-price currency, not the document currency", async () => {
+		const result = await hydrateAndValidateLines(
+			makeContext(),
+			new TeamleaderExecutionContext(),
+			[{ lines: [productLine()] }],
+			QUOTATION_LINE_CONFIG,
+			'USD',
+		);
+
+		expect(result.groupedLines[0].line_items[0].purchase_price).toEqual({
+			amount: 20,
+			currency: 'EUR',
+		});
+	});
+
+	it("keeps the product's currency for a manually overridden purchase price too", async () => {
+		const result = await hydrateAndValidateLines(
+			makeContext(),
+			new TeamleaderExecutionContext(),
+			[{ lines: [productLine({ lineOptions: { purchasePrice: 12.5 } })] }],
+			QUOTATION_LINE_CONFIG,
+			'USD',
+		);
+
+		// The amount is the user's, the currency is the account's.
+		expect(result.groupedLines[0].line_items[0].purchase_price).toEqual({
+			amount: 12.5,
+			currency: 'EUR',
+		});
+	});
+
+	it('falls back to the document currency when no product tells us better', async () => {
+		const result = await hydrateAndValidateLines(
+			makeContext(),
+			new TeamleaderExecutionContext(),
+			[{ lines: [customLine({ lineOptions: { purchasePrice: 5 } })] }],
+			QUOTATION_LINE_CONFIG,
+			'EUR',
+		);
+
+		expect(result.groupedLines[0].line_items[0].purchase_price).toEqual({
+			amount: 5,
+			currency: 'EUR',
+		});
+	});
+
+	it('never sends a purchase price on an invoice line', async () => {
+		const result = await hydrateAndValidateLines(
+			makeContext(),
+			new TeamleaderExecutionContext(),
+			[{ lines: [productLine({ lineOptions: { purchasePrice: 12.5 } })] }],
+			INVOICE_LINE_CONFIG,
+			'EUR',
+		);
+
+		expect(result.groupedLines[0].line_items[0].purchase_price).toBeUndefined();
+	});
+});
