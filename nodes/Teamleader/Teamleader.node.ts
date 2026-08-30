@@ -1,8 +1,8 @@
 import type { INodeTypeBaseDescription, IVersionedNodeType } from 'n8n-workflow';
 import { VersionedNodeType } from 'n8n-workflow';
 
-import { TeamleaderV1 } from './v1/TeamleaderV1.node';
-import { TeamleaderV2 } from './v2/TeamleaderV2.node';
+import { TeamleaderV1 } from './v1/TeamleaderV1';
+import { TeamleaderV2 } from './v2/TeamleaderV2';
 
 export class Teamleader extends VersionedNodeType {
 	constructor() {

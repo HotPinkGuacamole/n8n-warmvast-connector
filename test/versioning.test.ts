@@ -1,8 +1,8 @@
 import { VersionedNodeType } from 'n8n-workflow';
 
 import { Teamleader } from '../nodes/Teamleader/Teamleader.node';
-import { TeamleaderV1 } from '../nodes/Teamleader/v1/TeamleaderV1.node';
-import { TeamleaderV2 } from '../nodes/Teamleader/v2/TeamleaderV2.node';
+import { TeamleaderV1 } from '../nodes/Teamleader/v1/TeamleaderV1';
+import { TeamleaderV2 } from '../nodes/Teamleader/v2/TeamleaderV2';
 
 describe('Teamleader versioned node', () => {
 	const node = new Teamleader();
