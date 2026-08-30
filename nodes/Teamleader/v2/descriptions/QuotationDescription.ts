@@ -422,6 +422,10 @@ export const quotationFields: INodeProperties[] = [
 		description: 'Language Teamleader sends this quotation in',
 		displayOptions: scopeShow(scope('send')),
 	},
+	...ccBccFields(scope('send')).map((field) => ({
+		...field,
+		displayOptions: scopeShow(scope('send')),
+	})),
 	advancedOptions(scope('send'), [
 		attachmentsField(),
 		{
@@ -459,10 +463,6 @@ export const quotationFields: INodeProperties[] = [
 			description: 'Whether the sender ID above is a user or a department',
 		},
 	]),
-	...ccBccFields(scope('send')).map((field) => ({
-		...field,
-		displayOptions: scopeShow(scope('send')),
-	})),
 
 	// ---------------------------------------------------------------- Accept
 	quotationLocator(['accept'], 'The quotation to mark as accepted'),

@@ -84,9 +84,10 @@ describe('Company Create payload', () => {
 		const body = buildCompanyCreateBody({
 			name: 'Pied Piper',
 			invoicingAddress: {
+				// V2 editor names are camelCase; the API's snake_case is produced below.
 				address: {
-					line_1: 'Dok Noord 3A 101',
-					postal_code: '9000',
+					street: 'Dok Noord 3A 101',
+					postalCode: '9000',
 					city: 'Ghent',
 					country: 'BE',
 					addressee: 'Accounting',

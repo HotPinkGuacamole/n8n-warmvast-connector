@@ -91,8 +91,9 @@ export function mergeTelephones(options: {
 
 function buildAddressBody(entry: IDataObject): IDataObject {
 	return cleanObject({
-		line_1: entry.line_1,
-		postal_code: entry.postal_code,
+		// V2 field names are camelCase; the API's snake_case starts here.
+		line_1: entry.street,
+		postal_code: entry.postalCode,
 		city: entry.city,
 		country: entry.country,
 		addressee: entry.addressee,

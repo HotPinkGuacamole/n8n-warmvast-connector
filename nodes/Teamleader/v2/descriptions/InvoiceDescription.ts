@@ -926,8 +926,8 @@ export const invoiceFields: INodeProperties[] = [
 		description: 'Body of the e-mail sent with the invoice',
 		displayOptions: scopeShow(scope('send'), { messageSource: ['manual'] }),
 	},
-	advancedOptions(scope('send'), [attachmentsField()]),
 	...ccBccFields(scope('send')),
+	advancedOptions(scope('send'), [attachmentsField()]),
 
 	// ------------------------------------------------------- Register Payment
 	invoiceLocator(['registerPayment'], 'The invoice the payment belongs to'),

@@ -221,14 +221,14 @@ export function additionalPhonesField(types: INodePropertyOptions[]): INodePrope
 const ADDRESS_VALUE_FIELDS: INodeProperties[] = [
 	{
 		displayName: 'Street and Number',
-		name: 'line_1',
+		name: 'street',
 		type: 'string',
 		default: '',
 		placeholder: 'e.g. Dok Noord 3A 101',
 	},
 	{
 		displayName: 'Postal Code',
-		name: 'postal_code',
+		name: 'postalCode',
 		type: 'string',
 		default: '',
 	},
