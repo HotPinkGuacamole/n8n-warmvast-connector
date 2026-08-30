@@ -18,7 +18,12 @@ import { teamleaderApiRequest } from './GenericFunctions';
  */
 
 /** The kinds of records V2 can resolve extra context from. */
-export type ResolverKind = 'fromDeal' | 'fromCustomer' | 'fromInvoice' | 'fromProduct';
+export type ResolverKind =
+	| 'fromDeal'
+	| 'fromCustomer'
+	| 'fromInvoice'
+	| 'fromProduct'
+	| 'paymentTerms';
 
 /** Cache key for a single resolved record: `<resolver>:<id>`. */
 export type ResolverCacheKey = `${ResolverKind}:${string}`;
@@ -58,6 +63,8 @@ export interface IResolvedInvoice {
 	customer?: IResolvedCustomer;
 	/** Outstanding amount, used by "Full Outstanding Amount" payment registration. */
 	dueAmount?: number;
+	/** Currency Teamleader reports the outstanding amount in. Never converted. */
+	dueCurrency?: string;
 	raw?: IDataObject;
 }
 
@@ -77,12 +84,30 @@ export interface IResolvedProduct {
 	raw?: IDataObject;
 }
 
+/** One payment term exactly as `invoices.draft` wants it, plus its Teamleader ID. */
+export interface IResolvedPaymentTerm {
+	id: string;
+	type: string;
+	days?: number;
+}
+
+/**
+ * The account's payment terms plus the ID Teamleader itself marks as the
+ * default (`meta.default`). Read once per execution; the default is never
+ * guessed from position in the list.
+ */
+export interface IResolvedPaymentTerms {
+	terms: IResolvedPaymentTerm[];
+	defaultId?: string;
+}
+
 /** Maps a resolver kind to the shape it resolves to. */
 export interface IResolvedByKind {
 	fromDeal: IResolvedDeal;
 	fromCustomer: IResolvedCustomer;
 	fromInvoice: IResolvedInvoice;
 	fromProduct: IResolvedProduct;
+	paymentTerms: IResolvedPaymentTerms;
 }
 
 export type ResolvedValue<K extends ResolverKind> = IResolvedByKind[K];
@@ -155,6 +180,7 @@ export function contextResolutionMessage(
 		fromCustomer: 'the selected customer',
 		fromInvoice: 'the selected invoice',
 		fromProduct: 'the selected product',
+		paymentTerms: "your Teamleader account's payment terms",
 	};
 	return `Could not determine ${what} from ${source[kind]}. Set "${fieldToFill}" explicitly.`;
 }
@@ -237,5 +263,126 @@ export async function resolveProduct(
 		unitOfMeasureId: referenceId(data.unit_of_measure),
 		productCategoryId: referenceId(data.product_category),
 		raw: data,
+	};
+}
+
+/** Cache id used by the account-wide (non-per-record) payment-term resolver. */
+export const PAYMENT_TERMS_CACHE_ID = 'account';
+
+/**
+ * Read a customer's primary e-mail from the `emails` array of a
+ * `contacts.info` / `companies.info` response. Teamleader marks one entry
+ * `primary`; without that marker the first usable address is taken, and an
+ * empty list yields `undefined` rather than an invented address.
+ */
+function primaryEmail(value: unknown): string | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const entries = value.filter(
+		(entry): entry is IDataObject => !!entry && typeof entry === 'object',
+	);
+	const usable = entries.filter(
+		(entry) => typeof entry.email === 'string' && (entry.email as string).trim() !== '',
+	);
+	const primary = usable.find((entry) => entry.type === 'primary') ?? usable[0];
+	return primary ? (primary.email as string).trim() : undefined;
+}
+
+/**
+ * The `fromCustomer` resolver: one `contacts.info` / `companies.info` read.
+ * Cached per <type, id>, because the same UUID space is shared by both
+ * endpoints and a contact must never be resolved through the company endpoint.
+ */
+export async function resolveCustomer(
+	context: TeamleaderContext,
+	type: 'contact' | 'company',
+	id: string,
+): Promise<IResolvedCustomer> {
+	const endpoint = type === 'contact' ? '/contacts.info' : '/companies.info';
+	const response = await teamleaderApiRequest.call(context, endpoint, { id });
+	const data = (response.data ?? {}) as IDataObject;
+
+	const name =
+		type === 'contact'
+			? `${(data.first_name as string) ?? ''} ${(data.last_name as string) ?? ''}`.trim() ||
+				undefined
+			: ((data.name as string) ?? undefined);
+
+	return {
+		type,
+		id,
+		name,
+		email: primaryEmail(data.emails),
+		raw: data,
+	};
+}
+
+/** Cache id for a customer: the type matters, so both halves are in the key. */
+export function customerCacheId(type: 'contact' | 'company', id: string): string {
+	return `${type}:${id}`;
+}
+
+/**
+ * The `fromInvoice` resolver: one `invoices.info` read, shaped into
+ * `IResolvedInvoice`. `dueAmount` is the invoice's outstanding total as
+ * Teamleader reports it (`total.due`); nothing here computes or estimates it.
+ */
+export async function resolveInvoice(
+	context: TeamleaderContext,
+	id: string,
+): Promise<IResolvedInvoice> {
+	const response = await teamleaderApiRequest.call(context, '/invoices.info', { id });
+	const data = (response.data ?? {}) as IDataObject;
+	const invoicee = (data.invoicee ?? {}) as IDataObject;
+	const total = (data.total ?? {}) as IDataObject;
+	const due = total.due as IDataObject | undefined;
+
+	const customer = toResolvedCustomer(invoicee.customer);
+	if (customer && typeof invoicee.email === 'string' && invoicee.email.trim() !== '') {
+		// `invoices.info` exposes the invoicee e-mail directly; prefer it over a
+		// second read of the customer record.
+		customer.email = invoicee.email.trim();
+	}
+	if (customer && typeof invoicee.name === 'string') customer.name = invoicee.name;
+
+	return {
+		id,
+		departmentId: referenceId(data.department),
+		currency: typeof data.currency === 'string' ? data.currency : undefined,
+		customer,
+		dueAmount: due && typeof due.amount === 'number' ? due.amount : undefined,
+		dueCurrency: due && typeof due.currency === 'string' ? due.currency : undefined,
+		raw: data,
+	};
+}
+
+/**
+ * The `paymentTerms` resolver: one `paymentTerms.list` read.
+ *
+ * Uses `teamleaderApiRequest` rather than the paging helper on purpose — the
+ * account default lives in `meta.default`, which the paging helper discards.
+ * The default is whatever Teamleader says it is; it is never inferred from the
+ * order of the list.
+ */
+export async function resolvePaymentTerms(
+	context: TeamleaderContext,
+): Promise<IResolvedPaymentTerms> {
+	const response = await teamleaderApiRequest.call(context, '/paymentTerms.list', {});
+	const data = Array.isArray(response.data) ? (response.data as IDataObject[]) : [];
+	const meta = (response.meta ?? {}) as IDataObject;
+
+	const terms = data
+		.filter((entry) => typeof entry.id === 'string' && typeof entry.type === 'string')
+		.map((entry) => {
+			const term: IResolvedPaymentTerm = {
+				id: entry.id as string,
+				type: entry.type as string,
+			};
+			if (typeof entry.days === 'number') term.days = entry.days;
+			return term;
+		});
+
+	return {
+		terms,
+		defaultId: typeof meta.default === 'string' ? meta.default : undefined,
 	};
 }

@@ -116,15 +116,23 @@ export async function searchProducts(
 	);
 }
 
+/**
+ * Unlike quotations, `invoices.list` does support a `term` filter (invoice
+ * number, purchase order number, payment reference and invoicee), so this is a
+ * genuine server-side search rather than a filter over one loaded page.
+ */
 export async function searchInvoices(
 	this: ILoadOptionsFunctions,
-	_filterTerm?: string,
+	filterTerm?: string,
 	paginationToken?: string,
 ): Promise<INodeListSearchResult> {
+	const filter: IDataObject = {};
+	if (filterTerm) filter.term = filterTerm;
+
 	return await search(
 		this,
 		'/invoices.list',
-		{},
+		filter,
 		(item) => {
 			const number = (item.invoice_number as string) ?? (item.id as string);
 			const date = (item.invoice_date as string) ?? '';

@@ -10,6 +10,8 @@ export interface ITeamleaderPage {
 export interface ITeamleaderMeta {
 	page?: ITeamleaderPage;
 	matches?: number;
+	/** `paymentTerms.list` reports the account's configured default term here. */
+	default?: string;
 }
 
 /** Generic envelope returned by every Teamleader endpoint. */

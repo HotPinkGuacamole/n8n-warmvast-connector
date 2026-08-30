@@ -110,6 +110,7 @@ describe('V2 exposes Quotation with exactly the Stage 5 operation set', () => {
 			'company',
 			'contact',
 			'deal',
+			'invoice',
 			'product',
 			'quotation',
 		]);

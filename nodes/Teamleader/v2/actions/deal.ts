@@ -9,8 +9,9 @@ import {
 	teamleaderApiRequest,
 	teamleaderFetchList,
 } from '../../helpers/GenericFunctions';
-import type { ITeamleaderMoney, ITeamleaderReference } from '../../helpers/interfaces';
+import type { ITeamleaderMoney } from '../../helpers/interfaces';
 import { buildSort, cleanObject, extractCollection, toStringArray } from '../../helpers/utils';
+import { resolveCustomerReference } from '../helpers/customer';
 import { buildCustomFieldValues } from '../helpers/payload';
 
 /**
@@ -19,28 +20,6 @@ import { buildCustomFieldValues } from '../helpers/payload';
  * Only V2 parameter names are read here — versioning keeps V1's own
  * `v1/actions/deal.ts` completely separate and untouched.
  */
-
-/** Resolve a 3-mode customer locator value into the `{type, id}` `lead.customer` needs. */
-export function resolveCustomerReference(
-	locatorValue: unknown,
-	explicitType: unknown,
-): ITeamleaderReference | undefined {
-	const id = extractId(locatorValue);
-	if (!id) return undefined;
-
-	const mode =
-		typeof locatorValue === 'object' && locatorValue !== null
-			? ((locatorValue as IDataObject).mode as string | undefined)
-			: undefined;
-
-	if (mode === 'contactList') return { type: 'contact', id };
-	if (mode === 'companyList') return { type: 'company', id };
-
-	// Raw-ID / expression mode: the type can only come from the companion field.
-	if (explicitType === 'contact') return { type: 'contact', id };
-	if (explicitType === 'company') return { type: 'company', id };
-	return undefined;
-}
 
 /** Estimated Value: only sent when the user actually supplied a non-zero amount. */
 export function buildEstimatedValue(amount: unknown, currency: unknown): ITeamleaderMoney | undefined {

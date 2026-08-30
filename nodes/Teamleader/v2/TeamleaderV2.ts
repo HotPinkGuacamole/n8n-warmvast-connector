@@ -14,11 +14,13 @@ import * as loadOptions from '../methods/loadOptions';
 import { executeCompany } from './actions/company';
 import { executeContact } from './actions/contact';
 import { executeDeal } from './actions/deal';
+import { executeInvoice } from './actions/invoice';
 import { executeProduct } from './actions/product';
 import { executeQuotation } from './actions/quotation';
 import { companyFields, companyOperations } from './descriptions/CompanyDescription';
 import { contactFields, contactOperations } from './descriptions/ContactDescription';
 import { dealFields, dealOperations } from './descriptions/DealDescription';
+import { invoiceFields, invoiceOperations } from './descriptions/InvoiceDescription';
 import { productFields, productOperations } from './descriptions/ProductDescription';
 import { quotationFields, quotationOperations } from './descriptions/QuotationDescription';
 import { v2ResourceField } from './descriptions/V2Common';
@@ -55,6 +57,7 @@ export class TeamleaderV2 implements INodeType {
 					{ name: 'Company', value: 'company' },
 					{ name: 'Contact', value: 'contact' },
 					{ name: 'Deal', value: 'deal' },
+					{ name: 'Invoice', value: 'invoice' },
 					{ name: 'Product', value: 'product' },
 					{ name: 'Quotation', value: 'quotation' },
 				]),
@@ -64,6 +67,8 @@ export class TeamleaderV2 implements INodeType {
 				...companyFields,
 				...dealOperations,
 				...dealFields,
+				...invoiceOperations,
+				...invoiceFields,
 				...productOperations,
 				...productFields,
 				...quotationOperations,
@@ -104,6 +109,9 @@ export class TeamleaderV2 implements INodeType {
 						break;
 					case 'product':
 						results = await executeProduct.call(this, operation, i);
+						break;
+					case 'invoice':
+						results = await executeInvoice.call(this, operation, i, executionContext);
 						break;
 					case 'quotation':
 						results = await executeQuotation.call(this, operation, i, executionContext);

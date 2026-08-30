@@ -142,6 +142,7 @@ describe('Teamleader V2 skeleton', () => {
 			'company',
 			'contact',
 			'deal',
+			'invoice',
 			'product',
 			'quotation',
 		]);

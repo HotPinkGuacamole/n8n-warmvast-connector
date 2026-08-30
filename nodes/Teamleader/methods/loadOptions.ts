@@ -317,6 +317,12 @@ export async function getQuotationTemplatesScoped(
 	return await scopedDocumentTemplates(this, 'quotation');
 }
 
+export async function getInvoiceTemplatesScoped(
+	this: ILoadOptionsFunctions,
+): Promise<INodePropertyOptions[]> {
+	return await scopedDocumentTemplates(this, 'invoice');
+}
+
 /**
  * Label an unscoped list with the department each entry belongs to, so an
  * ambiguous "21%" never appears twice with no way to tell the two apart.

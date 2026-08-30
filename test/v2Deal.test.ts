@@ -7,9 +7,9 @@ import {
 	buildEstimatedValue,
 	buildEstimatedValueForced,
 	executeDeal,
-	resolveCustomerReference,
 	resolveProbabilityPercent,
 } from '../nodes/Teamleader/v2/actions/deal';
+import { resolveCustomerReference } from '../nodes/Teamleader/v2/helpers/customer';
 import { dealFields } from '../nodes/Teamleader/v2/descriptions/DealDescription';
 
 jest.mock('../nodes/Teamleader/helpers/GenericFunctions', () => {
