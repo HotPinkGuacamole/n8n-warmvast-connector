@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-teamleader-warmvast",
-	"version": "2.0.0-alpha.7",
+	"version": "2.0.0-alpha.8",
 	"description": "n8n community node for Teamleader Focus (CRM, deals, quotations, invoices, products)",
 	"keywords": [
 		"n8n-community-node-package",

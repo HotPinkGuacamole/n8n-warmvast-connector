@@ -14,7 +14,11 @@ import {
 	teamleaderApiRequest,
 	teamleaderFetchList,
 } from '../../helpers/GenericFunctions';
-import type { ITeamleaderGroupedLineItem, ITeamleaderReference } from '../../helpers/interfaces';
+import type {
+	ITeamleaderGroupedLineItem,
+	ITeamleaderMoney,
+	ITeamleaderReference,
+} from '../../helpers/interfaces';
 import { buildSort, extractCollection, toStringArray } from '../../helpers/utils';
 import { INVOICE_LINE_CONFIG } from '../descriptions/LineEditor';
 import { resolveCustomerReference } from '../helpers/customer';
@@ -465,6 +469,138 @@ async function executeInvoiceSend(
 	return [{ success: true, id }];
 }
 
+
+/**
+ * Register Payment.
+ *
+ * The amount is either what Teamleader itself still reports as due (read once
+ * through the shared `fromInvoice` resolver, in the currency Teamleader
+ * reports) or an explicit manual amount. Nothing is converted and nothing is
+ * estimated: a zero or negative amount is refused, because registering it
+ * would silently corrupt the invoice's payment state.
+ */
+async function executeRegisterPayment(
+	context: IExecuteFunctions,
+	executionContext: TeamleaderExecutionContext,
+	i: number,
+): Promise<IDataObject[]> {
+	const node = context.getNode();
+	const id = getRequiredId(context, 'invoiceId', i);
+	const amountSource = context.getNodeParameter('amountSource', i, 'outstanding') as string;
+
+	let payment: ITeamleaderMoney;
+
+	if (amountSource === 'manual') {
+		const raw = context.getNodeParameter('amount', i, 0);
+		const amount = typeof raw === 'number' ? raw : Number(raw);
+		if (Number.isNaN(amount) || amount <= 0) {
+			throw new NodeOperationError(node, 'Fill in a payment amount greater than 0', {
+				itemIndex: i,
+				description: 'Teamleader cannot register a zero or negative payment.',
+			});
+		}
+		const currency = context.getNodeParameter('currency', i, 'EUR') as string;
+		payment = { amount, currency: currency || 'EUR' };
+	} else {
+		const invoice = await executionContext.resolve('fromInvoice', id, (invoiceId) =>
+			resolveInvoice(context, invoiceId),
+		);
+
+		if (invoice.dueAmount === undefined || invoice.dueCurrency === undefined) {
+			throw new NodeOperationError(
+				node,
+				`Could not read the outstanding amount of invoice ${id}`,
+				{
+					itemIndex: i,
+					description:
+						'Set Amount Source to Manual Amount and enter what was paid. The connector never estimates an amount.',
+				},
+			);
+		}
+
+		if (invoice.dueAmount <= 0) {
+			throw new NodeOperationError(
+				node,
+				`Invoice ${id} has nothing outstanding (${invoice.dueAmount} ${invoice.dueCurrency})`,
+				{
+					itemIndex: i,
+					description: 'It is already paid, or a credit note settled it.',
+				},
+			);
+		}
+
+		// Teamleader's own currency for that amount; never re-stamped or converted.
+		payment = { amount: invoice.dueAmount, currency: invoice.dueCurrency };
+	}
+
+	const paidAt = toApiTemporal('paid_at', context.getNodeParameter('paidAt', i, ''));
+	if (!paidAt) {
+		throw new NodeOperationError(node, 'Fill in when this payment was received', {
+			itemIndex: i,
+			description: '"Paid At" is required by Teamleader and is never defaulted for you.',
+		});
+	}
+
+	const body: IDataObject = { id, payment, paid_at: paidAt };
+	const paymentMethodId = extractId(context.getNodeParameter('paymentMethodId', i, ''));
+	if (paymentMethodId) body.payment_method_id = paymentMethodId;
+
+	await teamleaderApiRequest.call(context, '/invoices.registerPayment', body);
+	return [{ success: true, id, payment }];
+}
+
+/**
+ * Credit Partially.
+ *
+ * `invoices.info` returns line items without any stable identifier, so there is
+ * no safe way to offer "pick the lines to credit from the invoice": a reordered
+ * or edited invoice would credit a different line than the one chosen. The
+ * explicit line editor is therefore the only mode, and the UI says why.
+ */
+async function executeCreditPartially(
+	context: IExecuteFunctions,
+	executionContext: TeamleaderExecutionContext,
+	i: number,
+): Promise<IDataObject[]> {
+	const id = getRequiredId(context, 'invoiceId', i);
+	const advanced = context.getNodeParameter('advancedOptions', i, {}) as IDataObject;
+
+	const groups = readLineGroups(context, i);
+	if (countLines(groups) === 0) {
+		throw new NodeOperationError(
+			context.getNode(),
+			'Add at least one line to credit.',
+			{
+				itemIndex: i,
+				description:
+					'Teamleader needs the lines the credit note should contain. To credit everything, use Credit Fully instead.',
+			},
+		);
+	}
+
+	const hydrated = await hydrateAndValidateLines(
+		context,
+		executionContext,
+		groups,
+		INVOICE_LINE_CONFIG,
+		undefined,
+	);
+
+	const body: IDataObject = { id, grouped_lines: hydrated.groupedLines };
+
+	const creditNoteDate = toApiTemporal(
+		'credit_note_date',
+		context.getNodeParameter('creditNoteDate', i, ''),
+	);
+	if (creditNoteDate) body.credit_note_date = creditNoteDate;
+
+	const discounts = buildInvoiceDiscounts(advanced.discounts);
+	if (discounts) body.discounts = discounts;
+
+	const response = await teamleaderApiRequest.call(context, '/invoices.creditPartially', body);
+	return [attachWarnings((response.data ?? {}) as IDataObject, hydrated.warnings)];
+}
+
 export async function executeInvoice(
 	this: IExecuteFunctions,
 	operation: string,
@@ -628,6 +764,34 @@ export async function executeInvoice(
 
 	if (operation === 'send') {
 		return await executeInvoiceSend(this, executionContext, i);
+	}
+
+	if (operation === 'registerPayment') {
+		return await executeRegisterPayment(this, executionContext, i);
+	}
+
+	if (operation === 'removePayments') {
+		const id = getRequiredId(this, 'invoiceId', i);
+		await teamleaderApiRequest.call(this, '/invoices.removePayments', { id });
+		return [{ success: true, id, paid: false }];
+	}
+
+	if (operation === 'credit') {
+		const id = getRequiredId(this, 'invoiceId', i);
+		const body: IDataObject = { id };
+
+		const creditNoteDate = toApiTemporal(
+			'credit_note_date',
+			this.getNodeParameter('creditNoteDate', i, ''),
+		);
+		if (creditNoteDate) body.credit_note_date = creditNoteDate;
+
+		const response = await teamleaderApiRequest.call(this, '/invoices.credit', body);
+		return [(response.data ?? {}) as IDataObject];
+	}
+
+	if (operation === 'creditPartially') {
+		return await executeCreditPartially(this, executionContext, i);
 	}
 
 	if (operation === 'book') {

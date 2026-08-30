@@ -157,6 +157,15 @@ Use this dependency-safe order:
 
 Department must precede Tax Rate and Product Category because it scopes those lookups.
 
+### Credit Partially cannot offer invoice-line selection
+
+`invoices.info` returns `grouped_lines[].line_items[]` with no stable line
+identifier. Any "pick the lines to credit from the invoice" convenience would
+have to address lines by position, and a reordered or edited invoice would then
+credit the wrong line. Credit Partially therefore uses the explicit shared line
+editor only, and the UI states the reason. Revisit only if Teamleader starts
+returning line IDs.
+
 ### Trigger migration
 
 When the Trigger UX is changed later, old saved triggers that have no raw `eventSelection` parameter must continue to use the existing saved `events` value. Do not determine legacy-vs-new state only through `getNodeParameter('eventSelection')`, because a new default can mask raw absence. Add a regression test using an old saved-parameter shape.

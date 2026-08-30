@@ -79,3 +79,49 @@ export const webhookTypeOptions: INodePropertyOptions[] = [
 	{ name: 'Time Tracking: Updated', value: 'timeTracking.updated' },
 	{ name: 'User: Deactivated', value: 'user.deactivated' },
 ];
+
+/**
+ * The events a Warmvast employee actually builds automations on. Kept short on
+ * purpose: this is the "Common Events" shortcut, not a second full list.
+ *
+ * Every value here must exist in `webhookTypeOptions` above — Teamleader
+ * publishes no quotation webhook types, so none are invented here.
+ */
+export const commonWebhookTypeOptions: INodePropertyOptions[] = [
+	{ name: 'Company: Added', value: 'company.added' },
+	{ name: 'Company: Updated', value: 'company.updated' },
+	{ name: 'Contact: Added', value: 'contact.added' },
+	{ name: 'Contact: Updated', value: 'contact.updated' },
+	{ name: 'Deal: Created', value: 'deal.created' },
+	{ name: 'Deal: Lost', value: 'deal.lost' },
+	{ name: 'Deal: Moved', value: 'deal.moved' },
+	{ name: 'Deal: Won', value: 'deal.won' },
+	{ name: 'Invoice: Booked', value: 'invoice.booked' },
+	{ name: 'Invoice: Drafted', value: 'invoice.drafted' },
+	{ name: 'Invoice: Payment Registered', value: 'invoice.paymentRegistered' },
+	{ name: 'Invoice: Sent', value: 'invoice.sent' },
+];
+
+/** Entity prefix of an event type, e.g. `deal` for `deal.won`. */
+export function entityOf(eventType: string): string {
+	return eventType.split('.')[0];
+}
+
+/** Every entity that has webhook types, as multi-select options. */
+export const webhookEntityOptions: INodePropertyOptions[] = Array.from(
+	new Set(webhookTypeOptions.map((option) => entityOf(option.value as string))),
+)
+	.map((entity) => ({
+		// `nextgenProject` -> `Nextgen Project`, `creditNote` -> `Credit Note`.
+		name: entity
+			.replace(/([A-Z])/g, ' $1')
+			.replace(/^./, (character) => character.toUpperCase())
+			.trim(),
+		value: entity,
+	}))
+	.sort((a, b) => a.name.localeCompare(b.name));
+
+/** Every known event type, used by the All Events selection. */
+export const allWebhookTypes: string[] = webhookTypeOptions.map(
+	(option) => option.value as string,
+);

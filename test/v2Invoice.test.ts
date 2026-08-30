@@ -138,16 +138,30 @@ describe('V2 exposes Invoice with the Stage 6 operation set', () => {
 		]);
 	});
 
-	it('offers exactly Get, Get Many, Create Draft, Update Draft, Update Booked, Book, Download and Send', () => {
+	it('offers the complete invoice operation set', () => {
 		expect(
 			invoiceOperations[0].options?.map((option) => (option as { value: string }).value).sort(),
-		).toEqual(['book', 'download', 'draft', 'get', 'getAll', 'send', 'update', 'updateBooked']);
+		).toEqual([
+			'book',
+			'credit',
+			'creditPartially',
+			'download',
+			'draft',
+			'get',
+			'getAll',
+			'registerPayment',
+			'removePayments',
+			'send',
+			'update',
+			'updateBooked',
+		]);
 	});
 
-	it('does not expose the financial operations yet', () => {
+	it('adds no invoice operation outside the agreed scope', () => {
 		const values = invoiceOperations[0].options?.map((option) => (option as { value: string }).value);
-		for (const later of ['registerPayment', 'removePayments', 'credit', 'creditPartially']) {
-			expect(values).not.toContain(later);
+		// invoices.copy and invoices.delete exist in the API but were never in scope.
+		for (const outOfScope of ['copy', 'delete']) {
+			expect(values).not.toContain(outOfScope);
 		}
 	});
 });
@@ -985,8 +999,8 @@ describe('Invoice Download', () => {
 describe('Unsupported invoice operations', () => {
 	it('rejects an operation this stage does not implement', async () => {
 		await expect(
-			run('registerPayment', { invoiceId: { mode: 'list', value: 'invoice-1' } }),
-		).rejects.toThrow('The operation "registerPayment" is not supported for resource "invoice"');
+			run('copy', { invoiceId: { mode: 'list', value: 'invoice-1' } }),
+		).rejects.toThrow('The operation "copy" is not supported for resource "invoice"');
 	});
 });
 

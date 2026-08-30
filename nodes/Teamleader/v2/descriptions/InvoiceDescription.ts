@@ -460,6 +460,18 @@ export const invoiceOperations: INodeProperties[] = [
 				action: 'Create a draft invoice',
 			},
 			{
+				name: 'Credit Fully',
+				value: 'credit',
+				description: 'Credit an invoice completely, creating a credit note',
+				action: 'Credit an invoice fully',
+			},
+			{
+				name: 'Credit Partially',
+				value: 'creditPartially',
+				description: 'Credit part of an invoice, creating a credit note for the lines you supply',
+				action: 'Credit an invoice partially',
+			},
+			{
 				name: 'Download',
 				value: 'download',
 				description: 'Download an invoice as PDF or UBL',
@@ -476,6 +488,18 @@ export const invoiceOperations: INodeProperties[] = [
 				value: 'getAll',
 				description: 'Get many invoices',
 				action: 'Get many invoices',
+			},
+			{
+				name: 'Register Payment',
+				value: 'registerPayment',
+				description: 'Register a payment against an invoice',
+				action: 'Register a payment',
+			},
+			{
+				name: 'Remove Payments',
+				value: 'removePayments',
+				description: 'Mark an invoice unpaid and remove every linked payment',
+				action: 'Remove payments from an invoice',
 			},
 			{
 				name: 'Send',
@@ -904,6 +928,103 @@ export const invoiceFields: INodeProperties[] = [
 	},
 	advancedOptions(scope('send'), [attachmentsField()]),
 	...ccBccFields(scope('send')),
+
+	// ------------------------------------------------------- Register Payment
+	invoiceLocator(['registerPayment'], 'The invoice the payment belongs to'),
+	{
+		displayName: 'Amount Source',
+		name: 'amountSource',
+		type: 'options',
+		options: [
+			{
+				name: 'Outstanding Amount',
+				value: 'outstanding',
+				description: 'Pay off exactly what Teamleader still reports as due on this invoice',
+			},
+			{
+				name: 'Manual Amount',
+				value: 'manual',
+				description: 'Register a specific amount, e.g. a partial payment',
+			},
+		],
+		default: 'outstanding',
+		description: 'How much was paid',
+		displayOptions: scopeShow(scope('registerPayment')),
+	},
+	{
+		displayName: 'Amount',
+		name: 'amount',
+		type: 'number',
+		typeOptions: { numberPrecision: 2 },
+		default: 0,
+		required: true,
+		description: 'Amount that was paid. Must be greater than 0.',
+		displayOptions: scopeShow(scope('registerPayment'), { amountSource: ['manual'] }),
+	},
+	{
+		displayName: 'Currency Name or ID',
+		name: 'currency',
+		type: 'options',
+		typeOptions: { loadOptionsMethod: 'getCurrencies' },
+		default: 'EUR',
+		description:
+			'Must match the currency of the invoice — the connector never converts. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+		displayOptions: scopeShow(scope('registerPayment'), { amountSource: ['manual'] }),
+	},
+	{
+		displayName: 'Paid At',
+		name: 'paidAt',
+		type: 'dateTime',
+		default: '',
+		required: true,
+		description: 'Moment the payment was received. Teamleader requires this and it is never defaulted.',
+		displayOptions: scopeShow(scope('registerPayment')),
+	},
+	{
+		displayName: 'Payment Method Name or ID',
+		name: 'paymentMethodId',
+		type: 'options',
+		typeOptions: { loadOptionsMethod: 'getPaymentMethods' },
+		default: '',
+		description:
+			'Optional. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+		displayOptions: scopeShow(scope('registerPayment')),
+	},
+
+	// -------------------------------------------------------- Remove Payments
+	invoiceLocator(['removePayments'], 'The invoice to mark as unpaid'),
+	destructiveNotice(scope('removePayments'), {
+		name: 'removePaymentsNotice',
+		text: 'Removes every payment linked to this invoice and marks it unpaid. Teamleader re-renders the invoice PDF. This cannot be undone from n8n.',
+	}),
+
+	// ----------------------------------------------------------- Credit Fully
+	invoiceLocator(['credit'], 'The invoice to credit completely'),
+	{
+		displayName: 'Credit Note Date',
+		name: 'creditNoteDate',
+		type: 'dateTime',
+		default: '',
+		description: "Date on the credit note. Leave empty to use Teamleader's own default.",
+		displayOptions: scopeShow(scope('credit', 'creditPartially')),
+	},
+	destructiveNotice(scope('credit'), {
+		name: 'creditNotice',
+		text: 'Creates a credit note for the full amount of this invoice. Credit notes are permanent bookkeeping documents.',
+	}),
+
+	// ------------------------------------------------------- Credit Partially
+	invoiceLocator(['creditPartially'], 'The invoice to credit part of'),
+	{
+		displayName:
+			'Teamleader returns invoice lines without a stable line ID, so lines cannot be picked from the invoice safely — a reordered invoice would credit the wrong line. Enter the lines to credit below; they are sent exactly as written.',
+		name: 'creditPartiallyNotice',
+		type: 'notice',
+		default: '',
+		displayOptions: scopeShow(scope('creditPartially')),
+	},
+	...lineEditorFields(scope('creditPartially'), INVOICE_LINE_CONFIG),
+	advancedOptions(scope('creditPartially'), [discountsField]),
 
 	// ------------------------------------------------------------------ Book
 	invoiceLocator(['book'], 'The draft invoice to book'),
