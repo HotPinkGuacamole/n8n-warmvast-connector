@@ -1,6 +1,7 @@
 import type { INodeProperties } from 'n8n-workflow';
 
 import { INVOICE_LINE_CONFIG, lineEditorFields } from './LineEditor';
+import { attachmentsField, ccBccFields, recipientCollectionField } from './SendFields';
 import {
 	advancedOptions,
 	customerLocator,
@@ -477,6 +478,12 @@ export const invoiceOperations: INodeProperties[] = [
 				action: 'Get many invoices',
 			},
 			{
+				name: 'Send',
+				value: 'send',
+				description: 'Send an invoice by e-mail',
+				action: 'Send an invoice',
+			},
+			{
 				name: 'Update Booked',
 				value: 'updateBooked',
 				description: 'Update an already booked invoice, where your settings allow it',
@@ -812,6 +819,91 @@ export const invoiceFields: INodeProperties[] = [
 		displayOptions: scopeShow(scope('updateBooked')),
 	},
 	advancedOptions(scope('updateBooked'), bookedAdvancedFields),
+
+	// ------------------------------------------------------------------ Send
+	invoiceLocator(['send'], 'The invoice to send'),
+	{
+		displayName: 'Recipient Source',
+		name: 'recipientSource',
+		type: 'options',
+		options: [
+			{
+				name: 'Teamleader Default',
+				value: 'default',
+				description:
+					'Send no recipient list at all, so Teamleader uses the invoice its own default addresses',
+			},
+			{
+				name: 'Invoice Customer',
+				value: 'invoiceCustomer',
+				description: "Send to the invoicee's own e-mail address",
+			},
+			{
+				name: 'Custom Recipients',
+				value: 'custom',
+				description: 'Type the addresses yourself',
+			},
+		],
+		default: 'default',
+		description:
+			'Where the "To" addresses come from. If the chosen source has no e-mail address the run fails — the connector never quietly sends to somebody else.',
+		displayOptions: scopeShow(scope('send')),
+	},
+	recipientCollectionField({
+		displayName: 'To',
+		name: 'to',
+		description: 'Addresses this invoice is sent to',
+		scope: scope('send'),
+		extraShow: { recipientSource: ['custom'] },
+	}),
+	{
+		displayName: 'Message Source',
+		name: 'messageSource',
+		type: 'options',
+		options: [
+			{ name: 'Manual Message', value: 'manual', description: 'Write the subject and message here' },
+			{
+				name: 'Teamleader Mail Template',
+				value: 'template',
+				description:
+					'Use one of your Teamleader invoice mail templates. invoices.send takes the template ID natively.',
+			},
+		],
+		default: 'manual',
+		description: 'Where the e-mail subject and body come from',
+		displayOptions: scopeShow(scope('send')),
+	},
+	{
+		displayName: 'Mail Template Name or ID',
+		name: 'mailTemplateId',
+		type: 'options',
+		typeOptions: { loadOptionsMethod: 'getInvoiceMailTemplates' },
+		default: '',
+		description:
+			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+		displayOptions: scopeShow(scope('send'), { messageSource: ['template'] }),
+	},
+	{
+		displayName: 'Subject',
+		name: 'subject',
+		type: 'string',
+		default: '',
+		required: true,
+		description: 'Subject line of the e-mail',
+		displayOptions: scopeShow(scope('send'), { messageSource: ['manual'] }),
+	},
+	{
+		displayName: 'Message',
+		name: 'body',
+		type: 'string',
+		typeOptions: { rows: 6 },
+		default: '',
+		required: true,
+		description: 'Body of the e-mail sent with the invoice',
+		displayOptions: scopeShow(scope('send'), { messageSource: ['manual'] }),
+	},
+	advancedOptions(scope('send'), [attachmentsField()]),
+	...ccBccFields(scope('send')),
 
 	// ------------------------------------------------------------------ Book
 	invoiceLocator(['book'], 'The draft invoice to book'),

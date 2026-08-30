@@ -1,8 +1,9 @@
 import type { INodeProperties } from 'n8n-workflow';
 
 import { QUOTATION_LINE_CONFIG, lineEditorFields } from './LineEditor';
+import { attachmentsField, ccBccFields, recipientCollectionField } from './SendFields';
 import { advancedOptions, destructiveNotice, resourceLocatorField } from './V2Common';
-import { paginationFields, scopeShow } from './V2SharedFields';
+import { LANGUAGE_OPTIONS, paginationFields, scopeShow } from './V2SharedFields';
 
 const RESOURCE = 'quotation';
 
@@ -215,6 +216,12 @@ export const quotationOperations: INodeProperties[] = [
 				action: 'Get many quotations',
 			},
 			{
+				name: 'Send',
+				value: 'send',
+				description: 'Send a quotation by e-mail',
+				action: 'Send a quotation',
+			},
+			{
 				name: 'Update',
 				value: 'update',
 				description: 'Update a quotation',
@@ -322,6 +329,140 @@ export const quotationFields: INodeProperties[] = [
 	expiresAfterField(['update']),
 	actionAfterExpiryField(['update']),
 	advancedOptions(scope('update'), quotationAdvancedFields),
+
+	// ------------------------------------------------------------------ Send
+	quotationLocator(['send'], 'The quotation to send'),
+	{
+		displayName: 'Recipient Source',
+		name: 'recipientSource',
+		type: 'options',
+		options: [
+			{
+				name: 'Deal Contact Person',
+				value: 'dealContactPerson',
+				description: "Send to the contact person on the quotation's deal",
+			},
+			{
+				name: 'Deal Customer',
+				value: 'dealCustomer',
+				description: "Send to the deal's customer company or contact",
+			},
+			{
+				name: 'Custom Recipients',
+				value: 'custom',
+				description: 'Type the addresses yourself',
+			},
+		],
+		default: 'dealContactPerson',
+		description:
+			'Where the "To" addresses come from. If the chosen source has no e-mail address the run fails — the connector never quietly sends to somebody else.',
+		displayOptions: scopeShow(scope('send')),
+	},
+	recipientCollectionField({
+		displayName: 'To',
+		name: 'to',
+		description: 'Addresses this quotation is sent to',
+		scope: scope('send'),
+		extraShow: { recipientSource: ['custom'] },
+	}),
+	{
+		displayName: 'Message Source',
+		name: 'messageSource',
+		type: 'options',
+		options: [
+			{ name: 'Manual Message', value: 'manual', description: 'Write the subject and message here' },
+			{
+				name: 'Teamleader Mail Template',
+				value: 'template',
+				description: "Copy the subject and body out of one of your Teamleader quotation mail templates",
+			},
+		],
+		default: 'manual',
+		description:
+			'Teamleader takes no template ID on quotations.send, so a template is copied into the message at run time. Only #LINK is replaced by Teamleader; other merge fields are sent as-is.',
+		displayOptions: scopeShow(scope('send')),
+	},
+	{
+		displayName: 'Mail Template Name or ID',
+		name: 'mailTemplateId',
+		type: 'options',
+		typeOptions: { loadOptionsMethod: 'getQuotationMailTemplates' },
+		default: '',
+		description:
+			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+		displayOptions: scopeShow(scope('send'), { messageSource: ['template'] }),
+	},
+	{
+		displayName: 'Subject',
+		name: 'subject',
+		type: 'string',
+		default: '',
+		required: true,
+		description: 'Subject line of the e-mail',
+		displayOptions: scopeShow(scope('send'), { messageSource: ['manual'] }),
+	},
+	{
+		displayName: 'Message',
+		name: 'content',
+		type: 'string',
+		typeOptions: { rows: 6 },
+		default: '',
+		required: true,
+		description:
+			'Body of the e-mail. Teamleader replaces #LINK with the Cloudsign signing URL; include it so the customer can sign.',
+		displayOptions: scopeShow(scope('send'), { messageSource: ['manual'] }),
+	},
+	{
+		displayName: 'Language',
+		name: 'language',
+		type: 'options',
+		options: LANGUAGE_OPTIONS,
+		default: 'nl',
+		required: true,
+		description: 'Language Teamleader sends this quotation in',
+		displayOptions: scopeShow(scope('send')),
+	},
+	advancedOptions(scope('send'), [
+		attachmentsField(),
+		{
+			displayName: 'Additional Quotation IDs',
+			name: 'additionalQuotationIds',
+			type: 'string',
+			default: '',
+			description:
+				'Comma-separated IDs of further quotations to send in the same e-mail. Teamleader requires them to belong to the same deal.',
+		},
+		{
+			displayName: 'Sender Email Address',
+			name: 'senderEmailAddress',
+			type: 'string',
+			placeholder: 'name@email.com',
+			default: '',
+			description: 'Address the quotation is sent from. Only used together with Sender ID.',
+		},
+		{
+			displayName: 'Sender ID',
+			name: 'senderId',
+			type: 'string',
+			default: '',
+			description: 'ID of the user or department sending it. Only used together with Sender Email Address.',
+		},
+		{
+			displayName: 'Sender Type',
+			name: 'senderType',
+			type: 'options',
+			options: [
+				{ name: 'Department', value: 'department' },
+				{ name: 'User', value: 'user' },
+			],
+			default: 'user',
+			description: 'Whether the sender ID above is a user or a department',
+		},
+	]),
+	...ccBccFields(scope('send')).map((field) => ({
+		...field,
+		displayOptions: scopeShow(scope('send')),
+	})),
 
 	// ---------------------------------------------------------------- Accept
 	quotationLocator(['accept'], 'The quotation to mark as accepted'),

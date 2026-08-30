@@ -23,7 +23,9 @@ export type ResolverKind =
 	| 'fromCustomer'
 	| 'fromInvoice'
 	| 'fromProduct'
-	| 'paymentTerms';
+	| 'fromQuotation'
+	| 'paymentTerms'
+	| 'mailTemplates';
 
 /** Cache key for a single resolved record: `<resolver>:<id>`. */
 export type ResolverCacheKey = `${ResolverKind}:${string}`;
@@ -101,13 +103,34 @@ export interface IResolvedPaymentTerms {
 	defaultId?: string;
 }
 
+/** Context derived from a quotation (`quotations.info`). */
+export interface IResolvedQuotation {
+	id: string;
+	/** The deal the quotation hangs off; quotations always belong to one. */
+	dealId?: string;
+	currency?: string;
+	raw?: IDataObject;
+}
+
+/** One Teamleader mail template with the content it would send. */
+export interface IResolvedMailTemplate {
+	id: string;
+	name?: string;
+	subject?: string;
+	body?: string;
+	language?: string;
+	departmentId?: string;
+}
+
 /** Maps a resolver kind to the shape it resolves to. */
 export interface IResolvedByKind {
 	fromDeal: IResolvedDeal;
 	fromCustomer: IResolvedCustomer;
 	fromInvoice: IResolvedInvoice;
 	fromProduct: IResolvedProduct;
+	fromQuotation: IResolvedQuotation;
 	paymentTerms: IResolvedPaymentTerms;
+	mailTemplates: IResolvedMailTemplate[];
 }
 
 export type ResolvedValue<K extends ResolverKind> = IResolvedByKind[K];
@@ -180,7 +203,9 @@ export function contextResolutionMessage(
 		fromCustomer: 'the selected customer',
 		fromInvoice: 'the selected invoice',
 		fromProduct: 'the selected product',
+		fromQuotation: 'the selected quotation',
 		paymentTerms: "your Teamleader account's payment terms",
+		mailTemplates: "your Teamleader account's mail templates",
 	};
 	return `Could not determine ${what} from ${source[kind]}. Set "${fieldToFill}" explicitly.`;
 }
@@ -385,4 +410,61 @@ export async function resolvePaymentTerms(
 		terms,
 		defaultId: typeof meta.default === 'string' ? meta.default : undefined,
 	};
+}
+
+/**
+ * The `fromQuotation` resolver: one `quotations.info` read. Quotations always
+ * belong to a deal, and that link is how Send reaches the deal's customer and
+ * contact person.
+ */
+export async function resolveQuotation(
+	context: TeamleaderContext,
+	id: string,
+): Promise<IResolvedQuotation> {
+	const response = await teamleaderApiRequest.call(context, '/quotations.info', { id });
+	const data = (response.data ?? {}) as IDataObject;
+
+	return {
+		id,
+		dealId: referenceId(data.deal),
+		currency: typeof data.currency === 'string' ? data.currency : undefined,
+		raw: data,
+	};
+}
+
+/** Cache id for a mail-template list: the type, plus the department if scoped. */
+export function mailTemplateCacheId(type: string, departmentId?: string): string {
+	return departmentId ? `${type}:${departmentId}` : type;
+}
+
+/**
+ * The `mailTemplates` resolver: one `mailTemplates.list` read per type.
+ *
+ * `mailTemplates.list` requires `filter.type` and offers no per-ID endpoint, so
+ * a chosen template is found inside the listed set rather than fetched alone.
+ */
+export async function resolveMailTemplates(
+	context: TeamleaderContext,
+	type: string,
+	departmentId?: string,
+): Promise<IResolvedMailTemplate[]> {
+	const filter: IDataObject = { type };
+	if (departmentId) filter.department_id = departmentId;
+
+	const response = await teamleaderApiRequest.call(context, '/mailTemplates.list', { filter });
+	const data = Array.isArray(response.data) ? (response.data as IDataObject[]) : [];
+
+	return data
+		.filter((entry) => typeof entry.id === 'string')
+		.map((entry) => {
+			const content = (entry.content ?? {}) as IDataObject;
+			return {
+				id: entry.id as string,
+				name: typeof entry.name === 'string' ? entry.name : undefined,
+				subject: typeof content.subject === 'string' ? content.subject : undefined,
+				body: typeof content.body === 'string' ? content.body : undefined,
+				language: typeof entry.language === 'string' ? entry.language : undefined,
+				departmentId: referenceId(entry.department),
+			};
+		});
 }

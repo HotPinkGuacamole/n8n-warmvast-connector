@@ -138,15 +138,15 @@ describe('V2 exposes Invoice with the Stage 6 operation set', () => {
 		]);
 	});
 
-	it('offers exactly Get, Get Many, Create Draft, Update Draft, Update Booked, Book and Download', () => {
+	it('offers exactly Get, Get Many, Create Draft, Update Draft, Update Booked, Book, Download and Send', () => {
 		expect(
 			invoiceOperations[0].options?.map((option) => (option as { value: string }).value).sort(),
-		).toEqual(['book', 'download', 'draft', 'get', 'getAll', 'update', 'updateBooked']);
+		).toEqual(['book', 'download', 'draft', 'get', 'getAll', 'send', 'update', 'updateBooked']);
 	});
 
-	it('does not expose Send or the financial operations yet', () => {
+	it('does not expose the financial operations yet', () => {
 		const values = invoiceOperations[0].options?.map((option) => (option as { value: string }).value);
-		for (const later of ['send', 'registerPayment', 'removePayments', 'credit', 'creditPartially']) {
+		for (const later of ['registerPayment', 'removePayments', 'credit', 'creditPartially']) {
 			expect(values).not.toContain(later);
 		}
 	});
@@ -985,8 +985,8 @@ describe('Invoice Download', () => {
 describe('Unsupported invoice operations', () => {
 	it('rejects an operation this stage does not implement', async () => {
 		await expect(
-			run('send', { invoiceId: { mode: 'list', value: 'invoice-1' } }),
-		).rejects.toThrow('The operation "send" is not supported for resource "invoice"');
+			run('registerPayment', { invoiceId: { mode: 'list', value: 'invoice-1' } }),
+		).rejects.toThrow('The operation "registerPayment" is not supported for resource "invoice"');
 	});
 });
 

@@ -3,6 +3,7 @@ import { NodeOperationError } from 'n8n-workflow';
 
 import {
 	resolveDeal,
+	resolveInvoice,
 	type IResolvedDeal,
 	type TeamleaderExecutionContext,
 } from '../../helpers/context';
@@ -20,6 +21,14 @@ import { resolveCustomerReference } from '../helpers/customer';
 import { attachWarnings, hydrateAndValidateLines } from '../helpers/hydration';
 import { assembleLineGroups, countLines, type INormalizedGroup } from '../helpers/lines';
 import { buildCustomFieldValues } from '../helpers/payload';
+import {
+	buildRecipientsObject,
+	readRecipientCollection,
+	requireRecipients,
+	resolveCustomerRecipient,
+	resolveMailTemplate,
+	type IRecipientEntry,
+} from '../helpers/send';
 import {
 	readPaymentTermInput,
 	resolvePaymentTerm,
@@ -334,6 +343,128 @@ const DOWNLOAD_FORMATS: Record<string, { extension: string; mimeType: string }> 
 	'ubl/peppol_bis_3': { extension: 'xml', mimeType: 'application/xml' },
 };
 
+
+/**
+ * Invoice Send.
+ *
+ * `invoices.send` differs from `quotations.send` in three ways that matter and
+ * are covered by request-body tests:
+ *   - recipients are OPTIONAL, so "Teamleader Default" genuinely omits the key
+ *     rather than sending an empty object;
+ *   - each recipient carries `email`, not `email_address`;
+ *   - the message is a `content` object and it DOES accept `mail_template_id`,
+ *     so a Teamleader template is used natively instead of being faked.
+ */
+async function executeInvoiceSend(
+	context: IExecuteFunctions,
+	executionContext: TeamleaderExecutionContext,
+	i: number,
+): Promise<IDataObject[]> {
+	const node = context.getNode();
+	const id = getRequiredId(context, 'invoiceId', i);
+	const recipientSource = context.getNodeParameter('recipientSource', i, 'default') as string;
+	const advanced = context.getNodeParameter('advancedOptions', i, {}) as IDataObject;
+
+	const content: IDataObject = {};
+	const messageSource = context.getNodeParameter('messageSource', i, 'manual') as string;
+
+	if (messageSource === 'template') {
+		const templateId = extractId(context.getNodeParameter('mailTemplateId', i, ''));
+		if (!templateId) {
+			throw new NodeOperationError(node, 'Select the mail template to send', {
+				itemIndex: i,
+				description: 'Choose one from "Mail Template", or switch Message Source to Manual Message.',
+			});
+		}
+
+		const template = await resolveMailTemplate(context, executionContext, 'invoice', templateId, i);
+		if (!template.subject || !template.body) {
+			throw new NodeOperationError(
+				node,
+				`Mail template ${template.name ?? templateId} has no subject or body to send`,
+				{
+					itemIndex: i,
+					description: 'Complete the template in Teamleader, or switch to a manual message.',
+				},
+			);
+		}
+
+		// `content.subject` and `content.body` are required even alongside a
+		// template ID, so the template's own text fills them.
+		content.subject = template.subject;
+		content.body = template.body;
+		content.mail_template_id = templateId;
+	} else {
+		const subject = context.getNodeParameter('subject', i, '') as string;
+		const body = context.getNodeParameter('body', i, '') as string;
+		if (!subject.trim() || !body.trim()) {
+			throw new NodeOperationError(node, 'Fill in both the subject and the message', {
+				itemIndex: i,
+			});
+		}
+		content.subject = subject;
+		content.body = body;
+	}
+
+	const requestBody: IDataObject = { id, content };
+
+	let to: IRecipientEntry[] = [];
+	if (recipientSource === 'custom') {
+		to = readRecipientCollection(context.getNodeParameter('to', i, {}));
+		requireRecipients(to, node, i, 'Custom Recipients');
+	} else if (recipientSource === 'invoiceCustomer') {
+		const invoice = await executionContext.resolve('fromInvoice', id, (invoiceId) =>
+			resolveInvoice(context, invoiceId),
+		);
+
+		if (!invoice.customer) {
+			throw new NodeOperationError(
+				node,
+				`Could not read the customer of invoice ${id}, so it has nobody to send to`,
+				{
+					itemIndex: i,
+					description: 'Set Recipient Source to Custom Recipients and enter the address yourself.',
+				},
+			);
+		}
+
+		// `invoices.info` often carries the invoicee e-mail directly; only when it
+		// does not is the customer record read as well.
+		if (invoice.customer.email) {
+			to = [
+				{
+					email: invoice.customer.email,
+					customer: { type: invoice.customer.type, id: invoice.customer.id },
+				},
+			];
+		} else {
+			to = [
+				await resolveCustomerRecipient(
+					context,
+					executionContext,
+					{ type: invoice.customer.type, id: invoice.customer.id },
+					i,
+					'Invoice customer',
+				),
+			];
+		}
+	}
+
+	const cc = readRecipientCollection(context.getNodeParameter('cc', i, {}));
+	const bcc = readRecipientCollection(context.getNodeParameter('bcc', i, {}));
+	const recipients = buildRecipientsObject(to, cc, bcc, 'email');
+
+	// Teamleader Default means no recipients key at all — an empty object would
+	// be a different request, not the same one.
+	if (Object.keys(recipients).length > 0) requestBody.recipients = recipients;
+
+	const attachments = toStringArray(advanced.attachments);
+	if (attachments.length > 0) requestBody.attachments = attachments;
+
+	await teamleaderApiRequest.call(context, '/invoices.send', requestBody);
+	return [{ success: true, id }];
+}
+
 export async function executeInvoice(
 	this: IExecuteFunctions,
 	operation: string,
@@ -493,6 +624,10 @@ export async function executeInvoice(
 		const endpoint = operation === 'update' ? '/invoices.update' : '/invoices.updateBooked';
 		await teamleaderApiRequest.call(this, endpoint, body);
 		return [attachWarnings({ success: true, id }, warnings)];
+	}
+
+	if (operation === 'send') {
+		return await executeInvoiceSend(this, executionContext, i);
 	}
 
 	if (operation === 'book') {

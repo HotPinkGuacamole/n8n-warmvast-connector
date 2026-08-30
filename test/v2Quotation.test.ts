@@ -116,30 +116,30 @@ describe('V2 exposes Quotation with exactly the Stage 5 operation set', () => {
 		]);
 	});
 
-	it('offers Get, Get Many, Create, Update, Accept and Delete', () => {
+	it('offers Get, Get Many, Create, Update, Accept, Delete and Send', () => {
 		expect(
 			quotationOperations[0].options?.map((option) => (option as { value: string }).value).sort(),
-		).toEqual(['accept', 'create', 'delete', 'get', 'getAll', 'update']);
+		).toEqual(['accept', 'create', 'delete', 'get', 'getAll', 'send', 'update']);
 	});
 
-	it('does not expose Send yet — Stage 7 owns it, and a half-built Send is worse than none', () => {
+	it('adds no operation Teamleader does not offer for quotations', () => {
 		const values = quotationOperations[0].options?.map(
 			(option) => (option as { value: string }).value,
 		);
-		expect(values).not.toContain('send');
-		expect(names(quotationFields)).not.toContain('subject');
-		expect(names(quotationFields)).not.toContain('sendOptions');
+		// quotations.download exists in the API but was never in this connector's scope.
+		expect(values).not.toContain('download');
+		expect(values).not.toContain('book');
 	});
 });
 
 describe('Quotation locator', () => {
 	const locators = quotationFields.filter((field) => field.name === 'quotationId');
 
-	it('exists for Get, Update, Accept and Delete', () => {
+	it('exists for Get, Update, Accept, Delete and Send', () => {
 		const operations = locators.flatMap(
 			(field) => field.displayOptions?.show?.operation as string[],
 		);
-		expect(operations.sort()).toEqual(['accept', 'delete', 'get', 'update']);
+		expect(operations.sort()).toEqual(['accept', 'delete', 'get', 'send', 'update']);
 	});
 
 	it('always offers From List plus By ID for expressions', () => {
@@ -865,8 +865,8 @@ describe('Quotation Accept and Delete', () => {
 
 	it('rejects an unsupported operation instead of guessing one', async () => {
 		await expect(
-			run('send', { quotationId: { mode: 'id', value: 'quotation-9' } }),
-		).rejects.toThrow('The operation "send" is not supported for resource "quotation"');
+			run('download', { quotationId: { mode: 'id', value: 'quotation-9' } }),
+		).rejects.toThrow('The operation "download" is not supported for resource "quotation"');
 	});
 });
 
